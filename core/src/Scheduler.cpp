@@ -133,13 +133,16 @@ void Scheduler::SubmitPacket(SourceId source_id, Byte* packet, Time timestamp) {
     bool on_UI = subscription.on_UI;
     auto& tasks = on_UI ? tasks_for_UI_ : tasks_for_workers_;
     auto& mutex = on_UI ? UI_queue_mtx_ : worker_queue_mtx_;
-    auto& cond_var = on_UI ? UI_queue_cv_ : worker_queue_cv_;
     {
       std::lock_guard<std::mutex> lock(mutex);
       tasks.emplace(timestamp, source_id, subscription.sink_callback,
                     subscription._this, packet);
       ++src.packet_refcounts[(size_t)packet_num];
     }
+  }
+  for (auto& subscription : src.subscriptions) {
+    bool on_UI = subscription.on_UI;
+    auto& cond_var = on_UI ? UI_queue_cv_ : worker_queue_cv_;
     cond_var.notify_one();
   }
   if (src.packet_refcounts[(size_t)packet_num] == 0) {

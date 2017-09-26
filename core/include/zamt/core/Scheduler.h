@@ -1,9 +1,9 @@
 #ifndef ZAMT_CORE_SCHEDULER_H_
 #define ZAMT_CORE_SCHEDULER_H_
 
-/// Does all job dispatching and scheduling in system
+/// Does all job dispatching and scheduling in system.
 /**
- * The main thread is used as the UI thread dedicated to do certain tasks.
+ * The main thread is used as the UI thread, dedicated to do certain tasks.
  * Other worker threads are created according to the number of CPUs.
  * Sources produce packets which are submitted to subscribed sinks.
  * A packet submission means a work unit for each sink.
@@ -12,8 +12,9 @@
  * The scheduler labels all work units by the sample (time) they belong to.
  * All buffers between sources and sinks contain a fixed number of packets
  * which are allocated at configuration time (RegisterSource()).
- * If the number of packets are not enough it is a scaling problem.
- * If a sink needs to get packets in order, it has to yield earlier jobs
+ * It is a scaling problem when the number of packets in any queue is too low.
+ * If a sink needs to get packets in order, it has to wait with yield() for
+ * earlier jobs to finish.
  */
 
 #include <atomic>
@@ -36,10 +37,10 @@ class Scheduler {
   using SinkCallback = void (*)(void* _this, SourceId source_id,
                                 const Byte* packet, Time timestamp);
 
-  /// Launches all worker threads
+  /// Launches all worker threads.
   Scheduler();
 
-  /// Waits all threads to finish before destruction
+  /// Waits all threads to finish before destruction.
   ~Scheduler();
 
   Scheduler(const Scheduler&) = delete;
@@ -61,7 +62,7 @@ class Scheduler {
   void RegisterSource(SourceId source_id, int packet_size,
                       int packets_in_queue);
 
-  /// Returns the fixed packet size a source is using
+  /// Returns the fixed packet size a source is using.
   int GetPacketSize(SourceId source_id);
 
   /**
@@ -80,13 +81,13 @@ class Scheduler {
    */
   void Unsubscribe(SourceId source_id, SinkCallback sink_callback);
 
-  /// Caller source acquires a packet which can be loaded with data
+  /// Caller source acquires a packet which can be loaded with data.
   Byte* GetPacketForSubmission(SourceId source_id);
 
-  /// Packet is put into queue, all subscribed sinks will be assigned a task
+  /// Packet is put into queue, all subscribed sinks will be assigned a task.
   void SubmitPacket(SourceId source_id, Byte* packet, Time timestamp);
 
-  /// The sink processed the data (earlier is better) and releases it
+  /// The sink processed the data (earlier is better) and releases it.
   void ReleasePacket(SourceId source_id, const Byte* packet);
 
   /// Call from main thread! Returns only on shutdown.
