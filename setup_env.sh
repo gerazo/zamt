@@ -2,7 +2,7 @@
 
 if command -v apt >/dev/null ; then
   # for the build
-  sudo apt install cmake ninja-build binutils g++ llvm-dev clang clang-format clang-tidy
+  sudo apt install cmake ninja-build binutils g++ llvm-dev clang clang-format
 
   # for audio module
   sudo apt install libpulse-dev

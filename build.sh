@@ -2,6 +2,9 @@
 
 COMPILERS="gcc clang"
 MODES="Debug Release"
+#MODES="Debug Release RelWithDebInfo"
+CMAKE_PROJECT="Ninja"
+#CMAKE_PROJECT="Eclipse CDT4 - Ninja"
 
 for COMPILER in $COMPILERS; do
   for MODE in $MODES; do
@@ -16,7 +19,7 @@ for COMPILER in $COMPILERS; do
         clang) CXXCOMPILER=clang++ ;;
         *) CXXCOMPILER=$COMPILER ;;
       esac
-      CC=$COMPILER CXX=$CXXCOMPILER cmake -G Ninja -D CMAKE_BUILD_TYPE=$MODE ..
+      CC=$COMPILER CXX=$CXXCOMPILER cmake -G "$CMAKE_PROJECT" -DCMAKE_BUILD_TYPE=$MODE -DCMAKE_EXPORT_COMPILE_COMMANDS=ON ..
       cd ..
     fi
 
