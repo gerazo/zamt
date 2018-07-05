@@ -6,12 +6,28 @@ MODES="Debug Release"
 CMAKE_PROJECT="Ninja"
 #CMAKE_PROJECT="Eclipse CDT4 - Ninja"
 
+BUILD_DEPS="cmake ninja-build binutils g++ llvm-dev clang clang-format"
+PULSEAUDIO_DEPS="libpulse-dev"
+GTKMM_DEPS="libgtkmm-3.0-dev"
+
+ALL_DEPS="$BUILD_DEPS $PULSEAUDIO_DEPS $GTKMM_DEPS"
+
+if command -v apt >/dev/null && command -v dpkg >/dev/null ; then
+  if ! dpkg -s $ALL_DEPS >/dev/null; then
+    echo "\\033[1m\\033[37m\\033[42m--- Installing Dependencies (needs sudo privileges)...\\033[0m"
+    sudo apt install $ALL_DEPS
+  fi
+else
+  # TODO write commands for other packaging systems
+  echo "\\033[1m\\033[37m\\033[41m" This packaging system is not yet supported!!! "\\033[0m" These dependencies should be installed: $ALL_DEPS
+fi
+
 for COMPILER in $COMPILERS; do
   for MODE in $MODES; do
     BUILD_DIR="_build_"$COMPILER"_"$MODE
 
     if [ ! -d $BUILD_DIR ]; then
-      echo "\\033[1m\\033[37m\\033[42m" Creating new build directory: $BUILD_DIR "\\033[0m"
+      echo "\\033[1m\\033[37m\\033[42m" Creating new build setup: $BUILD_DIR "\\033[0m"
       mkdir -p $BUILD_DIR
       cd $BUILD_DIR
       case $COMPILER in
@@ -44,17 +60,22 @@ for COMPILER in $COMPILERS; do
   done
 done
 
+FAIL=0
 for MODULE in $( ls -1d */ | grep -v _build_ ); do
   echo "\\033[1m\\033[37m\\033[42m" Analyzing module $MODULE "\\033[0m"
   for SOURCE in $( find $MODULE"include" $MODULE"src" $MODULE"test" -regex "\(.*\.cpp\)\|\(.*\.h\)" ); do
     if clang-format -style=file -output-replacements-xml $SOURCE | grep "<replacement " >/dev/null; then
       echo "\\033[1m\\033[37m\\033[41m" Syntax convention problem with $SOURCE "\\033[0m"
       clang-format -style=file $SOURCE | diff $SOURCE -
-      exit 3
+      FAIL=3
     fi
   done
 done
 
-echo "\\033[1m\\033[37m\\033[42m Build successful. \\033[0m"
-exit 0
+if [ $FAIL"" = "0" ]; then
+  echo "\\033[1m\\033[37m\\033[42m Build successful. \\033[0m"
+else
+  echo "\\033[1m\\033[37m\\033[41m Build failed with code: $FAIL \\033[0m"
+fi
+exit $FAIL
 
