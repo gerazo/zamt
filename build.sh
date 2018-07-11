@@ -12,14 +12,16 @@ GTKMM_DEPS="libgtkmm-3.0-dev"
 
 ALL_DEPS="$BUILD_DEPS $PULSEAUDIO_DEPS $GTKMM_DEPS"
 
-if command -v apt >/dev/null && command -v dpkg >/dev/null ; then
-  if ! dpkg -s $ALL_DEPS >/dev/null; then
-    echo "\\033[1m\\033[37m\\033[42m--- Installing Dependencies (needs sudo privileges)...\\033[0m"
-    sudo apt install $ALL_DEPS
+if [ "$1" != "-nodep" ]; then
+  if command -v apt >/dev/null && command -v dpkg >/dev/null ; then
+    if ! dpkg -s $ALL_DEPS >/dev/null; then
+      echo "\\033[1m\\033[37m\\033[42m--- Installing Dependencies (needs sudo privileges)...\\033[0m"
+      sudo apt install $ALL_DEPS
+    fi
+  else
+    # TODO write commands for other packaging systems
+    echo "\\033[1m\\033[37m\\033[41m" This packaging system is not yet supported!!! "\\033[0m" These dependencies should be installed: $ALL_DEPS
   fi
-else
-  # TODO write commands for other packaging systems
-  echo "\\033[1m\\033[37m\\033[41m" This packaging system is not yet supported!!! "\\033[0m" These dependencies should be installed: $ALL_DEPS
 fi
 
 for COMPILER in $COMPILERS; do
@@ -72,7 +74,7 @@ for MODULE in $( ls -1d */ | grep -v _build_ ); do
   done
 done
 
-if [ $FAIL"" = "0" ]; then
+if [ "$FAIL" = "0" ]; then
   echo "\\033[1m\\033[37m\\033[42m Build successful. \\033[0m"
 else
   echo "\\033[1m\\033[37m\\033[41m Build failed with code: $FAIL \\033[0m"

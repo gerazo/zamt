@@ -1,9 +1,10 @@
+os: linux
 dist: trusty
 sudo: false
 
 language: cpp
 
-script: ./build.sh
+script: ./build.sh -nodep
 
 branches:
   only:
