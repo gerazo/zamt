@@ -3,7 +3,7 @@
 
 using namespace zamt;
 
-static const int packets_to_arrive = sizeof(long) * 8 - 2;
+static const int packets_to_arrive = (int)sizeof(long) * 8 - 2;
 
 void RunsWellEmpty() {
   Scheduler sch;
