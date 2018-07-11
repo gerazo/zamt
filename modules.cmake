@@ -15,7 +15,7 @@ find_package(PkgConfig)
 # If missing: sudo apt install libpulse-dev
 list(FIND zamt_modules audio audio_on)
 if(audio_on GREATER -1)
-  find_package(PulseAudio 8 REQUIRED CONFIG)
+  find_package(PulseAudio REQUIRED CONFIG)
 endif()
 
 # If missing: sudo apt install libgtkmm-3.0-dev
