@@ -14,7 +14,6 @@ addons:
   apt:
     packages:
     - ninja-build
-    - clang-format
     - libpulse-dev
     - libgtkmm-3.0-dev
 
