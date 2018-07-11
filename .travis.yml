@@ -12,8 +12,11 @@ branches:
 
 addons:
   apt:
+    sources:
+    - ubuntu-toolchain-r-test
     packages:
     - ninja-build
     - libpulse-dev
     - libgtkmm-3.0-dev
+    - g++-7
 
