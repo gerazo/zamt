@@ -12,6 +12,7 @@ GTKMM_DEPS="libgtkmm-3.0-dev"
 
 ALL_DEPS="$BUILD_DEPS $PULSEAUDIO_DEPS $GTKMM_DEPS"
 KEEPGOING=1
+USEASAN=ON
 
 
 while [ $# -gt 0 ]; do
@@ -20,12 +21,14 @@ while [ $# -gt 0 ]; do
     -k) shift; KEEPGOING="$1" ;;
     -nodep) NODEP=1 ;;
     -noanal) NOANAL=1 ;;
+    -noasan) USEASAN=OFF ;;
     -v) VERBOSE="-v" ;;
     *) echo "ZAMT build script parameters:"
        echo "  -compilers <compiler_list>   Tests with the given compiler toolchains."
        echo "  -k <N>                       Wait for N errors before stopping."
        echo "  -nodep                       Skip dependency detection and installation."
        echo "  -noanal                      Skip extra analysis of sources."
+       echo "  -noasan                      Do not use leak checking in containers."
        echo "  -v                           Give verbose output on everything."
        exit 99
        ;;
@@ -54,7 +57,7 @@ for COMPILER in $COMPILERS; do
       mkdir -p $BUILD_DIR
       cd $BUILD_DIR
       CXXCOMPILER=$( echo $COMPILER | sed "s/gcc/g++/g" | sed "s/clang/clang++/g" )
-      CC=$COMPILER CXX=$CXXCOMPILER cmake -G "$CMAKE_PROJECT" -DCMAKE_BUILD_TYPE=$MODE -DCMAKE_EXPORT_COMPILE_COMMANDS=ON ..
+      CC=$COMPILER CXX=$CXXCOMPILER cmake -G "$CMAKE_PROJECT" -DCMAKE_BUILD_TYPE=$MODE -DCMAKE_EXPORT_COMPILE_COMMANDS=ON -DUSE_ADDRESS_SANITIZER=$USEASAN ..
       cd ..
     fi
 

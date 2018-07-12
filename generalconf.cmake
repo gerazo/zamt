@@ -1,5 +1,7 @@
 # global configuration
 
+set(USE_ADDRESS_SANITIZER ON CACHE BOOL "Use -fsanitize=address for leak checking.")
+
 if(${CMAKE_CXX_COMPILER_ID} STREQUAL "GNU")
   set(CMAKE_AR gcc-ar)
   set(CMAKE_RANLIB gcc-ranlib)
@@ -26,14 +28,18 @@ function(SetupTarget target_name target_modules)
     set_target_properties(${target_name} PROPERTIES LINK_FLAGS_RELEASE "/LTCG")
   else()
     target_compile_options(${target_name} PRIVATE -Wall -pedantic -Wextra -Wconversion -Werror)
-    target_compile_options(${target_name} PRIVATE $<$<CONFIG:Debug>:-fsanitize=address>)
+    if(USE_ADDRESS_SANITIZER)
+      target_compile_options(${target_name} PRIVATE $<$<CONFIG:Debug>:-fsanitize=address>)
+    endif()
     # TODO: remove this if llvm-3.8 or later has LLVMgold.so again
     if(${CMAKE_CXX_COMPILER_ID} STREQUAL "GNU")
       target_compile_options(${target_name} PRIVATE $<$<CONFIG:Release>:-flto>)
       target_compile_options(${target_name} PRIVATE $<$<CONFIG:RelWithDebInfo>:-flto>)
       target_compile_options(${target_name} PRIVATE $<$<CONFIG:RelWithDebInfo>:-pg>)
     endif()
-    set_target_properties(${target_name} PROPERTIES LINK_FLAGS_DEBUG "-fsanitize=address")
+    if(USE_ADDRESS_SANITIZER)
+      set_target_properties(${target_name} PROPERTIES LINK_FLAGS_DEBUG "-fsanitize=address")
+    endif()
     # TODO: remove this if llvm-3.8 or later has LLVMgold.so again
     if(${CMAKE_CXX_COMPILER_ID} STREQUAL "GNU")
       set_target_properties(${target_name} PROPERTIES LINK_FLAGS_RELEASE "-flto")
