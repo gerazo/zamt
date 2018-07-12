@@ -151,6 +151,8 @@ class Scheduler {
     std::unique_ptr<Task> ptr;
   };
 
+  Source& GetSourceById(SourceId source_id);
+
   // Locking of sources_ container
   void WriteLockSources();
   void WriteUnlockSources();

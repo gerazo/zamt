@@ -45,38 +45,22 @@ void Scheduler::RegisterSource(SourceId source_id, int packet_size,
 }
 
 int Scheduler::GetPacketSize(SourceId source_id) {
-  ReadLockSources();
-  auto src_it =
-      std::lower_bound(sources_.begin(), sources_.end(), SourceRef(source_id));
-  assert(src_it != sources_.end() && src_it->source_id == source_id);
-  Source& src = *src_it->ptr;
-  ReadUnlockSources();
-  return src.packet_size;
+  return GetSourceById(source_id).packet_size;
 }
 
 void Scheduler::Subscribe(SourceId source_id, SinkCallback sink_callback,
                           void* _this, bool on_UI) {
-  ReadLockSources();
-  auto src_it =
-      std::lower_bound(sources_.begin(), sources_.end(), SourceRef(source_id));
-  assert(src_it != sources_.end() && src_it->source_id == source_id);
-  Source& src = *src_it->ptr;
-  ReadUnlockSources();
+  Source& src = GetSourceById(source_id);
   LockSource(src);
   assert(std::find(src.subscriptions.begin(), src.subscriptions.end(),
-                   Subscription(sink_callback, _this, on_UI)) ==
+                   Subscription(sink_callback, nullptr, false)) ==
          src.subscriptions.end());
   src.subscriptions.emplace_back(sink_callback, _this, on_UI);
   UnlockSource(src);
 }
 
 void Scheduler::Unsubscribe(SourceId source_id, SinkCallback sink_callback) {
-  ReadLockSources();
-  auto src_it =
-      std::lower_bound(sources_.begin(), sources_.end(), SourceRef(source_id));
-  assert(src_it != sources_.end() && src_it->source_id == source_id);
-  Source& src = *src_it->ptr;
-  ReadUnlockSources();
+  Source& src = GetSourceById(source_id);
   LockSource(src);
   auto& subs = src.subscriptions;
   auto subs_it = std::find(subs.begin(), subs.end(),
@@ -88,12 +72,7 @@ void Scheduler::Unsubscribe(SourceId source_id, SinkCallback sink_callback) {
 }
 
 Scheduler::Byte* Scheduler::GetPacketForSubmission(SourceId source_id) {
-  ReadLockSources();
-  auto src_it =
-      std::lower_bound(sources_.begin(), sources_.end(), SourceRef(source_id));
-  assert(src_it != sources_.end() && src_it->source_id == source_id);
-  Source& src = *(src_it->ptr);
-  ReadUnlockSources();
+  Source& src = GetSourceById(source_id);
   LockSource(src);
   if (src.free_packets.empty()) {
     UnlockSource(src);
@@ -113,12 +92,7 @@ Scheduler::Byte* Scheduler::GetPacketForSubmission(SourceId source_id) {
 }
 
 void Scheduler::SubmitPacket(SourceId source_id, Byte* packet, Time timestamp) {
-  ReadLockSources();
-  auto src_it =
-      std::lower_bound(sources_.begin(), sources_.end(), SourceRef(source_id));
-  assert(src_it != sources_.end() && src_it->source_id == source_id);
-  Source& src = *src_it->ptr;
-  ReadUnlockSources();
+  Source& src = GetSourceById(source_id);
   int packet_num =
       static_cast<int>(packet - &src.packet_buffer[0]) / src.packet_size;
   assert(src.packet_refcounts.size() == src.packet_usages.size());
@@ -129,14 +103,30 @@ void Scheduler::SubmitPacket(SourceId source_id, Byte* packet, Time timestamp) {
 
   LockSource(src);
   src.packet_refcounts[(size_t)packet_num] = 0;
+  int UI_subscribers = 0;
+  int normal_subscribers = 0;
   for (auto& subscription : src.subscriptions) {
-    bool on_UI = subscription.on_UI;
-    auto& tasks = on_UI ? tasks_for_UI_ : tasks_for_workers_;
-    auto& mutex = on_UI ? UI_queue_mtx_ : worker_queue_mtx_;
-    {
-      std::lock_guard<std::mutex> lock(mutex);
-      tasks.emplace(timestamp, source_id, subscription.sink_callback,
-                    subscription._this, packet);
+    if (subscription.on_UI)
+      UI_subscribers++;
+    else
+      normal_subscribers++;
+  }
+  if (UI_subscribers) {
+    std::lock_guard<std::mutex> lock(UI_queue_mtx_);
+    for (auto& subscription : src.subscriptions) {
+      if (!subscription.on_UI) continue;
+      tasks_for_UI_.emplace(timestamp, source_id, subscription.sink_callback,
+                            subscription._this, packet);
+      ++src.packet_refcounts[(size_t)packet_num];
+    }
+  }
+  if (normal_subscribers) {
+    std::lock_guard<std::mutex> lock(worker_queue_mtx_);
+    for (auto& subscription : src.subscriptions) {
+      if (subscription.on_UI) continue;
+      tasks_for_workers_.emplace(timestamp, source_id,
+                                 subscription.sink_callback, subscription._this,
+                                 packet);
       ++src.packet_refcounts[(size_t)packet_num];
     }
   }
@@ -145,6 +135,8 @@ void Scheduler::SubmitPacket(SourceId source_id, Byte* packet, Time timestamp) {
     auto& cond_var = on_UI ? UI_queue_cv_ : worker_queue_cv_;
     cond_var.notify_one();
   }
+  if (UI_subscribers) UI_queue_cv_.notify_one();
+  while (normal_subscribers--) worker_queue_cv_.notify_one();
   if (src.packet_refcounts[(size_t)packet_num] == 0) {
     src.free_packets.push_back(packet_num);
     src.packet_usages[(size_t)packet_num] = false;
@@ -153,12 +145,7 @@ void Scheduler::SubmitPacket(SourceId source_id, Byte* packet, Time timestamp) {
 }
 
 void Scheduler::ReleasePacket(SourceId source_id, const Byte* packet) {
-  ReadLockSources();
-  auto src_it =
-      std::lower_bound(sources_.begin(), sources_.end(), SourceRef(source_id));
-  assert(src_it != sources_.end() && src_it->source_id == source_id);
-  Source& src = *src_it->ptr;
-  ReadUnlockSources();
+  Source& src = GetSourceById(source_id);
   int packet_num =
       static_cast<int>(packet - &src.packet_buffer[0]) / src.packet_size;
   assert(src.packet_refcounts.size() == src.packet_usages.size());
@@ -269,6 +256,16 @@ Scheduler::TaskRef::TaskRef(Time _timestamp, SourceId source_id,
 
 bool Scheduler::TaskRef::operator<(const TaskRef& o) const {
   return timestamp > o.timestamp;  // finish the earliest job first
+}
+
+Scheduler::Source& Scheduler::GetSourceById(SourceId source_id) {
+  ReadLockSources();
+  auto src_it =
+      std::lower_bound(sources_.begin(), sources_.end(), SourceRef(source_id));
+  assert(src_it != sources_.end() && src_it->source_id == source_id);
+  Source& src = *src_it->ptr;
+  ReadUnlockSources();
+  return src;
 }
 
 void Scheduler::WriteLockSources() {
