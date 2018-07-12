@@ -90,24 +90,18 @@ for COMPILER in $COMPILERS; do
   done
 done
 
-FAIL=0
 if [ "$NOANAL" != "1" ]; then
   for MODULE in $( ls -1d */ | grep -v _build_ ); do
     echo "\\033[1m\\033[37m\\033[42m" Analyzing module $MODULE "\\033[0m"
     for SOURCE in $( find $MODULE"include" $MODULE"src" $MODULE"test" -regex "\(.*\.cpp\)\|\(.*\.h\)" ); do
       if clang-format -style=file -output-replacements-xml $SOURCE | grep "<replacement " >/dev/null; then
-        echo "\\033[1m\\033[37m\\033[41m" Syntax convention problem with $SOURCE "\\033[0m"
+        echo "\\033[1m\\033[37m\\033[43m" Syntax convention problem with $SOURCE "\\033[0m"
         clang-format -style=file $SOURCE | diff $SOURCE -
-        FAIL=3
       fi
     done
   done
 fi
 
-if [ "$FAIL" = "0" ]; then
-  echo "\\033[1m\\033[37m\\033[42m Build successful. \\033[0m"
-else
-  echo "\\033[1m\\033[37m\\033[41m Build failed with code: $FAIL \\033[0m"
-fi
-exit $FAIL
+echo "\\033[1m\\033[37m\\033[42m Build successful. \\033[0m"
+exit 0
 

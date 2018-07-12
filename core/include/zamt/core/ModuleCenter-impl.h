@@ -56,6 +56,6 @@ template <class ModuleClass>
 ModuleCenter::ModuleBootstrap<ModuleClass>
     ModuleCenter::ModuleStub<ModuleClass>::bootstrap_;
 
-}  // namesapce zamt
+}  // namespace zamt
 
 #endif  // ZAMT_CORE_MODULECENTER_IMPL_H_
