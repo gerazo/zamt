@@ -275,11 +275,11 @@ void Scheduler::WriteLockSources() {
   int cycles_left = max_spin_cycles_before_yield;
   int all_readers;
   do {
-    all_readers = GetNumberOfWorkers() + 1;
     if (--cycles_left == 0) {
       std::this_thread::yield();
       cycles_left = max_spin_cycles_before_yield;
     }
+    all_readers = GetNumberOfWorkers() + 1;
   } while (!sources_semaphore_.compare_exchange_weak(
       all_readers, 0, std::memory_order_acq_rel));
 }
@@ -293,15 +293,17 @@ void Scheduler::ReadLockSources() {
   int cycles_left = max_spin_cycles_before_yield;
   int current_readers;
   do {
-    current_readers = sources_semaphore_.load(std::memory_order_acquire);
     if (--cycles_left == 0) {
       std::this_thread::yield();
       cycles_left = max_spin_cycles_before_yield;
     }
-  } while (
-      current_readers <= 0 ||
-      !sources_semaphore_.compare_exchange_weak(
-          current_readers, current_readers - 1, std::memory_order_acq_rel));
+    current_readers = sources_semaphore_.load(std::memory_order_acquire);
+    if (current_readers <= 0) continue;
+    if (sources_semaphore_.compare_exchange_weak(
+            current_readers, current_readers - 1, std::memory_order_acq_rel)) {
+      break;
+    }
+  } while (1);
 }
 
 void Scheduler::ReadUnlockSources() {
