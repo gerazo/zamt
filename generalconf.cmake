@@ -7,6 +7,7 @@ elseif(${CMAKE_CXX_COMPILER_ID} STREQUAL "Clang")
   set(CMAKE_AR llvm-ar)
   set(CMAKE_RANLIB llvm-ranlib)
 endif()
+set(CMAKE_EXE_LINKER_FLAGS ${CMAKE_EXE_LINKER_FLAGS} -fuse-ld=gold)
 
 
 # per target configuration
