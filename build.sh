@@ -11,17 +11,22 @@ PULSEAUDIO_DEPS="libpulse-dev"
 GTKMM_DEPS="libgtkmm-3.0-dev"
 
 ALL_DEPS="$BUILD_DEPS $PULSEAUDIO_DEPS $GTKMM_DEPS"
+KEEPGOING=1
 
 
 while [ $# -gt 0 ]; do
   case "$1" in
+    -compilers) shift; COMPILERS="$1" ;;
+    -k) shift; KEEPGOING="$1" ;;
     -nodep) NODEP=1 ;;
     -noanal) NOANAL=1 ;;
-    -compilers) shift; COMPILERS="$1" ;;
+    -v) VERBOSE="-v" ;;
     *) echo "ZAMT build script parameters:"
+       echo "  -compilers <compiler_list>   Tests with the given compiler toolchains."
+       echo "  -k <N>                       Wait for N errors before stopping."
        echo "  -nodep                       Skip dependency detection and installation."
        echo "  -noanal                      Skip extra analysis of sources."
-       echo "  -compilers <compiler_list>   Tests with the given compiler toolchains."
+       echo "  -v                           Give verbose output on everything."
        exit 99
        ;;
   esac
@@ -55,11 +60,19 @@ for COMPILER in $COMPILERS; do
 
     echo "\\033[1m\\033[37m\\033[42m" Compiling: $BUILD_DIR "\\033[0m"
     cd $BUILD_DIR
-    if ninja ; then
+    if ninja -k $KEEPGOING $VERBOSE ; then
       echo "\\033[1m\\033[37m\\033[42m" Testing: $BUILD_DIR "\\033[0m"
-      if ninja test ; then
+      if CTEST_OUTPUT_ON_FAILURE=TRUE ninja test $VERBOSE ; then
+        if [ "$VERBOSE" != "" ]; then
+          echo "\\033[1m\\033[37m\\033[42m" Test log of $BUILD_DIR "\\033[0m"
+          cat Testing/Temporary/LastTest.log
+        fi
         echo "\\033[1m\\033[37m\\033[42m" Finished $BUILD_DIR "\\033[0m"
       else
+        if [ "$VERBOSE" != "" ]; then
+          echo "\\033[1m\\033[37m\\033[41m" Test log of $BUILD_DIR "\\033[0m"
+          cat Testing/Temporary/LastTest.log
+        fi
         echo "\\033[1m\\033[37m\\033[41m" Testing of $BUILD_DIR failed."\\033[0m"
         cd ..
         exit 2

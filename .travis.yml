@@ -4,7 +4,7 @@ sudo: false
 
 language: cpp
 
-script: ./build.sh -nodep -compilers "gcc-5 gcc-7 clang"
+script: ./build.sh -nodep -compilers "gcc-5 gcc-7 clang -v -k 99"
 
 branches:
   only:
