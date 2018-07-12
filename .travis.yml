@@ -4,7 +4,7 @@ sudo: false
 
 language: cpp
 
-script: ./build.sh -nodep
+script: ./build.sh -nodep -compilers "gcc-5 gcc-7 clang"
 
 branches:
   only:
@@ -16,7 +16,8 @@ addons:
     - ubuntu-toolchain-r-test
     packages:
     - ninja-build
+    - g++-5
+    - g++-7
     - libpulse-dev
     - libgtkmm-3.0-dev
-    - g++-7
 
