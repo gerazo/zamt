@@ -5,6 +5,7 @@ enable_testing()
 include(generalconf.cmake)
 
 include(modules.cmake)
+
 include(targets.cmake)
 
 AddAllTests("${zamt_modules}")
