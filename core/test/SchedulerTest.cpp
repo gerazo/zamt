@@ -95,6 +95,24 @@ void SinkGetsAllPacketsSent() {
   ASSERT(packets_arrived == (1l << packets_to_arrive) - 1);
 }
 
+void SinkGetsAllPacketsSentOnUIThread() {
+  packets_arrived = 0;
+  Scheduler sch;
+  sch.RegisterSource(1, 1024, packets_to_arrive);
+  sch.Subscribe(1, &CheckPackets, &sch, true);
+  for (int i = 0; i < packets_to_arrive; ++i) {
+    uint8_t* p = sch.GetPacketForSubmission(1);
+    p[0] = (uint8_t)i;
+    sch.SubmitPacket(1, p, (Scheduler::Time)i * 1000);
+  }
+  while (packets_arrived != (1l << packets_to_arrive) - 1) sch.DoUITaskStep();
+  // do some empty runs
+  for (int i = 0; i < 3; ++i) sch.DoUITaskStep();
+  sch.Shutdown();
+  for (int i = 0; i < 3; ++i) std::this_thread::yield();
+  ASSERT(packets_arrived == (1l << packets_to_arrive) - 1);
+}
+
 static std::atomic<long> packets_arrived2;
 
 void CheckPackets2(void* schp, Scheduler::SourceId source_id,
@@ -233,6 +251,7 @@ TEST_BEGIN() {
   QueueWorksAfterUnsubscribe();
   OutOfBufferGivesNull();
   SinkGetsAllPacketsSent();
+  SinkGetsAllPacketsSentOnUIThread();
   AllSinksGetAllPackets();
   MultipleSourcesWithOneSink();
   SourceSinkChainWorks();

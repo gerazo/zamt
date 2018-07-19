@@ -90,8 +90,9 @@ class Scheduler {
   /// The sink processed the data (earlier is better) and releases it.
   void ReleasePacket(SourceId source_id, const Byte* packet);
 
-  /// Call from main thread! Returns only on shutdown.
-  void DoUITasks();
+  /// Call from main thread or main loop! Returns if nothing to do
+  /// or after one task was carried out. It never blocks.
+  void DoUITaskStep();
 
   /// Tells all threads to stop working and quit. Destructor waits for them.
   void Shutdown();

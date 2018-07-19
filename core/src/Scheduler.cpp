@@ -162,7 +162,7 @@ void Scheduler::ReleasePacket(SourceId source_id, const Byte* packet) {
   UnlockSource(src);
 }
 
-void Scheduler::DoUITasks() { DispatchTasks(true); }
+void Scheduler::DoUITaskStep() { DispatchTasks(true); }
 
 void Scheduler::Shutdown() {
   {
@@ -187,7 +187,7 @@ void Scheduler::DispatchTasks(bool UI_thread_mode) {
     Time timestamp;
     {
       std::unique_lock<std::mutex> lock(mutex);
-      while (tasks.empty() &&
+      while (!UI_thread_mode && tasks.empty() &&
              !shutdown_initiated_.load(std::memory_order_acquire)) {
         cond_var.wait(lock);
       }
@@ -206,6 +206,7 @@ void Scheduler::DispatchTasks(bool UI_thread_mode) {
     if (sink_callback) {
       (*sink_callback)(_this, source_id, packet, timestamp);
     }
+    if (UI_thread_mode) return;
   }
 }
 
