@@ -22,7 +22,8 @@ namespace zamt {
 
 class ModuleCenter {
  public:
-  ModuleCenter();
+  /// Pass runtime configuration data to all modules.
+  ModuleCenter(int argc, const char* const* argv);
   ~ModuleCenter();
 
   ModuleCenter(const ModuleCenter&) = delete;
@@ -52,7 +53,7 @@ class ModuleCenter {
   template <class ModuleClass>
   struct ModuleStub {
     static size_t GetId();
-    static Module* Create();
+    static Module* Create(int argc, const char* const* argv);
     static void Init(const ModuleCenter* module_center, Module* module);
     static void Destroy(Module* instance);
     static ModuleBootstrap<ModuleClass> bootstrap_;
@@ -60,7 +61,7 @@ class ModuleCenter {
 
   struct ModuleInitRecord {
     size_t key;
-    Module* (*create_function)();
+    Module* (*create_function)(int argc, const char* const* argv);
     void (*init_function)(const ModuleCenter*, Module*);
     void (*destroy_function)(Module*);
   };

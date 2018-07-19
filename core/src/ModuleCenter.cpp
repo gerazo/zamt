@@ -4,10 +4,10 @@
 
 namespace zamt {
 
-ModuleCenter::ModuleCenter() {
+ModuleCenter::ModuleCenter(int argc, const char* const* argv) {
   for (int i = 0; i < module_num_; ++i) {
     ModuleInitRecord& rec = module_inits_[i];
-    Module* instance = (*rec.create_function)();
+    Module* instance = (*rec.create_function)(argc, argv);
     bool inserted;
     std::tie(std::ignore, inserted) =
         module_instances_.emplace(rec.key, instance);

@@ -5,7 +5,7 @@ using namespace zamt;
 
 class ModuleOne : public Module {
  public:
-  ModuleOne() {
+  ModuleOne(int, const char* const*) {
     count++;
     data = 1;
     mcenter = nullptr;
@@ -20,7 +20,7 @@ class ModuleOne : public Module {
 
 class ModuleTwo : public Module {
  public:
-  ModuleTwo() {
+  ModuleTwo(int, const char* const*) {
     count++;
     data = 2;
     mcenter = nullptr;
@@ -48,7 +48,7 @@ void AllModulesAreStartedAndStopped() {
   EXPECT(ModuleOne::count == 0);
   EXPECT(ModuleTwo::count == 0);
   {
-    ModuleCenter mc;
+    ModuleCenter mc(0, nullptr);
     EXPECT(ModuleOne::count == 1);
     EXPECT(ModuleTwo::count == 1);
     EXPECT(mc.Get<ModuleOne>().data == 1);
@@ -64,7 +64,7 @@ void MultipleModulesCanLiveTogether() {
   EXPECT(ModuleOne::count == 0);
   EXPECT(ModuleTwo::count == 0);
   {
-    ModuleCenter mc;
+    ModuleCenter mc(0, nullptr);
     EXPECT(ModuleOne::count == 1);
     EXPECT(ModuleTwo::count == 1);
     mc.Get<ModuleOne>().data = 3;
@@ -72,7 +72,7 @@ void MultipleModulesCanLiveTogether() {
     EXPECT(mc.Get<ModuleOne>().mcenter == &mc);
     EXPECT(mc.Get<ModuleTwo>().mcenter == &mc);
     {
-      ModuleCenter mc2;
+      ModuleCenter mc2(0, nullptr);
       EXPECT(ModuleOne::count == 2);
       EXPECT(ModuleTwo::count == 2);
       EXPECT(mc2.Get<ModuleOne>().data == 1);

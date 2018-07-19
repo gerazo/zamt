@@ -9,7 +9,8 @@ class ModuleCenter;
 
 class Module {
  public:
-  Module() {}
+  /// Constructor in descendants is used to pass runtime configuration data.
+  Module(/*int argc, const char* const* argv*/) {}
   ~Module() {}
   void Initialize(const ModuleCenter*) {}
 

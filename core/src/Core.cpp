@@ -2,7 +2,7 @@
 
 namespace zamt {
 
-Core::Core() {}
+Core::Core(int /*argc*/, const char* const* /*argv*/) {}
 
 Core::~Core() {}
 

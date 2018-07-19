@@ -9,7 +9,7 @@ namespace zamt {
 
 class Core : public Module {
  public:
-  Core();
+  Core(int argc, const char* const* argv);
   ~Core();
   void Initialize(const ModuleCenter*);
 
