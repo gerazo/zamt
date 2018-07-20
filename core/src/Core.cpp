@@ -11,9 +11,9 @@ zamt::Core* g_core = nullptr;
 void quit_signaled(int signal_number) {
   int exit_code = -1;
   if (signal_number == SIGTERM)
-    exit_code = zamt::Core::kErrorCodeSIGTERM;
+    exit_code = zamt::Core::kExitCodeSIGTERM;
   else if (signal_number == SIGINT)
-    exit_code = zamt::Core::kErrorCodeSIGINT;
+    exit_code = zamt::Core::kExitCodeSIGINT;
   assert(g_core);
   g_core->Quit(exit_code);
 }
@@ -30,9 +30,11 @@ void handle_signal(int signal_number) {
 
 namespace zamt {
 
+#ifdef TEST
 void Core::ReInitExitCode() {
   exit_code_.store(Core::kNoExitCode, std::memory_order_release);
 }
+#endif
 
 Core::Core(int argc, const char* const* argv) : cli_(argc, argv) {
   handle_signal(SIGTERM);

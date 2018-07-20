@@ -14,11 +14,13 @@ namespace zamt {
 
 class Core : public Module {
  public:
-  const static int kErrorCodeSIGTERM = 101;
-  const static int kErrorCodeSIGINT = 102;
+  const static int kExitCodeSIGTERM = 101;
+  const static int kExitCodeSIGINT = 102;
 
+#ifdef TEST
   /// For testing purposes, simulate if the process only starts now
   static void ReInitExitCode();
+#endif
 
   Core(int argc, const char* const* argv);
   ~Core();

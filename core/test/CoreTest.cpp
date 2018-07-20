@@ -18,7 +18,7 @@ void CallQuit(Core* core) {
 void ShutsDownFromOtherThread() {
   ModuleCenter mc(sizeof(params) / sizeof(char*), params);
   Core& core = mc.Get<zamt::Core>();
-  core.ReInitExitCode();
+  Core::ReInitExitCode();
   std::thread thr(CallQuit, &core);
   EXPECT(core.WaitForQuit() == 99);
   thr.join();
@@ -29,7 +29,7 @@ void CallQuitAtOnce(Core* core) { core->Quit(98); }
 void ShutsDownFromOtherThreadImmediately() {
   ModuleCenter mc(sizeof(params) / sizeof(char*), params);
   Core& core = mc.Get<zamt::Core>();
-  core.ReInitExitCode();
+  Core::ReInitExitCode();
   std::thread thr(CallQuitAtOnce, &core);
   EXPECT(core.WaitForQuit() == 98);
   thr.join();
@@ -44,10 +44,10 @@ void Signal(int signal_number) {
 void ShutsDownForSignal(int signal_number) {
   ModuleCenter mc(sizeof(params) / sizeof(char*), params);
   Core& core = mc.Get<zamt::Core>();
-  core.ReInitExitCode();
+  Core::ReInitExitCode();
   std::thread thr(Signal, signal_number);
-  int expected = (signal_number == SIGTERM) ? Core::kErrorCodeSIGTERM
-                                            : Core::kErrorCodeSIGINT;
+  int expected = (signal_number == SIGTERM) ? Core::kExitCodeSIGTERM
+                                            : Core::kExitCodeSIGINT;
   EXPECT(core.WaitForQuit() == expected);
   thr.join();
 }
