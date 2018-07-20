@@ -10,6 +10,11 @@ set(test_cpps
 AddTest(CLIParametersTest ${this_module} "${other_modules}" "${test_cpps}")
 
 set(test_cpps
+  CoreTest.cpp
+)
+AddTest(CoreTest ${this_module} "${other_modules}" "${test_cpps}")
+
+set(test_cpps
   ModuleCenterTest.cpp
 )
 AddTest(ModuleCenterTest ${this_module} "${other_modules}" "${test_cpps}")

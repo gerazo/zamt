@@ -30,6 +30,10 @@ void handle_signal(int signal_number) {
 
 namespace zamt {
 
+void Core::ReInitExitCode() {
+  exit_code_.store(Core::kNoExitCode, std::memory_order_release);
+}
+
 Core::Core(int argc, const char* const* argv) : cli_(argc, argv) {
   handle_signal(SIGTERM);
   handle_signal(SIGINT);

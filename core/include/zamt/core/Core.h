@@ -17,6 +17,9 @@ class Core : public Module {
   const static int kErrorCodeSIGTERM = 101;
   const static int kErrorCodeSIGINT = 102;
 
+  /// For testing purposes, simulate if the process only starts now
+  static void ReInitExitCode();
+
   Core(int argc, const char* const* argv);
   ~Core();
 
