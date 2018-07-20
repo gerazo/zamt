@@ -16,6 +16,9 @@ class CLIParameters {
   /// otherwise returns nullptr.
   const char* GetParam(const char* param_prefix) const;
 
+  int argc() const { return argc_; }
+  const char* const* argv() const { return argv_; }
+
  private:
   int argc_;
   const char* const* argv_;

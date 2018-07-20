@@ -6,8 +6,7 @@
 int main(int argc, char** argv) {
   zamt::ModuleCenter mc(argc, argv);
   zamt::Core& core = mc.Get<zamt::Core>();
-  (void)core;
-  return 0;
+  return core.WaitForQuit();
 }
 
 #endif
