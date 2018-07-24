@@ -1,6 +1,7 @@
 set(module_cpps
   CLIParameters.cpp
   Core.cpp
+  Log.cpp
   main.cpp
   ModuleCenter.cpp
   Scheduler.cpp

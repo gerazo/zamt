@@ -1,5 +1,6 @@
 #include "zamt/core/CLIParameters.h"
 
+#include <cstdlib>
 #include <cstring>
 
 namespace zamt {
@@ -26,6 +27,12 @@ const char* CLIParameters::GetParam(const char* param_prefix) const {
     }
   }
   return nullptr;
+}
+
+int CLIParameters::GetNumParam(const char* param_prefix) const {
+  const char* param = GetParam(param_prefix);
+  if (param == nullptr) return kNotFound;
+  return atoi(param);
 }
 
 }  // namespace zamt

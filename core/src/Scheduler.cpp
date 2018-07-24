@@ -6,8 +6,9 @@
 
 namespace zamt {
 
-Scheduler::Scheduler() : shutdown_initiated_(false) {
-  size_t workers = (size_t)std::thread::hardware_concurrency();
+Scheduler::Scheduler(int worker_threads) : shutdown_initiated_(false) {
+  size_t workers = (size_t)worker_threads;
+  if (workers == 0) workers = (size_t)std::thread::hardware_concurrency();
   if (workers == 0) workers = 1;
   sources_semaphore_.store((int)workers + 1, std::memory_order_release);
   if (workers == 1) {

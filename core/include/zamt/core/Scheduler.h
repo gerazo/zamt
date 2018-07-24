@@ -37,8 +37,8 @@ class Scheduler {
   using SinkCallback = void (*)(void* _this, SourceId source_id,
                                 const Byte* packet, Time timestamp);
 
-  /// Launches all worker threads.
-  Scheduler();
+  /// Launches all worker threads. (worker_threads == 0 means autodetect)
+  Scheduler(int worker_threads = 0);
 
   /// Waits all threads to finish before destruction.
   ~Scheduler();

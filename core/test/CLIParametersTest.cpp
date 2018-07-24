@@ -28,9 +28,18 @@ void ReturnsParamCorrectly() {
   EXPECT(clip.GetParam("-q") == nullptr);
 }
 
+void ReturnsNumberCorrectly() {
+  const char* params[] = {"exec", "-j4", "-s"};
+  CLIParameters clip(sizeof(params) / sizeof(char*), params);
+  EXPECT(clip.GetNumParam("-o") == CLIParameters::kNotFound);
+  EXPECT(clip.GetNumParam("-j") == 4);
+  EXPECT(clip.GetNumParam("-s") == 0);
+}
+
 TEST_BEGIN() {
   WorksOnEmptyList();
   FindsParam();
   ReturnsParamCorrectly();
+  ReturnsNumberCorrectly();
 }
 TEST_END()

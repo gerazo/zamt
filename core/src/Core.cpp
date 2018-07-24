@@ -26,9 +26,14 @@ void handle_signal(int signal_number) {
   assert(er == 0);
   (void)er;
 }
-}
+
+}  // namespace
 
 namespace zamt {
+
+const char* Core::kModuleLabel = "core";
+const char* Core::kHelpParamStr = "-h";
+const char* Core::kThreadsParamStr = "-j";
 
 #ifdef TEST
 void Core::ReInitExitCode() {
@@ -37,17 +42,39 @@ void Core::ReInitExitCode() {
 #endif
 
 Core::Core(int argc, const char* const* argv) : cli_(argc, argv) {
+  log_ = new Log(kModuleLabel, cli_);
+  log_->LogMessage("Starting...");
+
   handle_signal(SIGTERM);
   handle_signal(SIGINT);
   // In case of multiple instances, it is enough to get only one
   g_core = this;
+
+  if (cli_.HasParam(kHelpParamStr)) {
+    PrintHelp();
+    Log::PrintHelp4Verbose();
+    Quit(kExitCodeHelp);
+    return;
+  }
+
+  int workers = cli_.GetNumParam(kThreadsParamStr);
+  if (workers == CLIParameters::kNotFound) workers = 0;
+  log_->LogMessage("Launching scheduler...");
+  scheduler_ = new Scheduler(workers);
+  log_->LogMessage("Scheduler started with ", scheduler_->GetNumberOfWorkers(),
+                   " threads.");
 }
 
-Core::~Core() {}
+Core::~Core() {
+  log_->LogMessage("Stopping...");
+  if (scheduler_) delete scheduler_;
+  if (log_) delete log_;
+}
 
 void Core::Initialize(const ModuleCenter* mc) { mc_ = mc; }
 
 void Core::Quit(int exit_code) {
+  log_->LogMessage("Shutdown initiated with exit code ", exit_code);
   {
     std::lock_guard<std::mutex> lock(mutex_);
     exit_code_.store(exit_code, std::memory_order_release);
@@ -56,6 +83,7 @@ void Core::Quit(int exit_code) {
 }
 
 int Core::WaitForQuit() {
+  log_->LogMessage("Ready, waiting for shutdown...");
   std::unique_lock<std::mutex> lock(mutex_);
   int exit_code = exit_code_.load(std::memory_order_acquire);
   while (exit_code == kNoExitCode) {
@@ -63,7 +91,21 @@ int Core::WaitForQuit() {
     cond_var_.wait(lock);
     exit_code = exit_code_.load(std::memory_order_acquire);
   }
+  log_->LogMessage("Shutdown started with exit code ", exit_code);
   return exit_code;
+}
+
+Scheduler& Core::scheduler() {
+  assert(scheduler_);
+  return *scheduler_;
+}
+
+void Core::PrintHelp() {
+  Log::Print("ZAMT Core Module");
+  Log::Print(" -h             Get help from all active modules and quit.");
+  Log::Print(
+      " -jNum          Set number of worker threads in scheduler."
+      " 0 means autodetect.");
 }
 
 std::atomic<int> Core::exit_code_(Core::kNoExitCode);
