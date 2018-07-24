@@ -1,5 +1,8 @@
 #include "zamt/core/Core.h"
 
+#include "zamt/core/Log.h"
+#include "zamt/core/Scheduler.h"
+
 #include <signal.h>
 #include <cassert>
 #include <cstring>

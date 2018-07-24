@@ -4,15 +4,16 @@
 /// Core Module collects general stateful services
 
 #include "zamt/core/CLIParameters.h"
-#include "zamt/core/Log.h"
 #include "zamt/core/Module.h"
-#include "zamt/core/Scheduler.h"
 
 #include <atomic>
 #include <condition_variable>
 #include <mutex>
 
 namespace zamt {
+
+class Log;
+class Scheduler;
 
 class Core : public Module {
  public:
