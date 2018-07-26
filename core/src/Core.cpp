@@ -45,7 +45,7 @@ void Core::ReInitExitCode() {
 #endif
 
 Core::Core(int argc, const char* const* argv) : cli_(argc, argv) {
-  log_ = new Log(kModuleLabel, cli_);
+  log_.reset(new Log(kModuleLabel, cli_));
   log_->LogMessage("Starting...");
 
   handle_signal(SIGTERM);
@@ -63,16 +63,12 @@ Core::Core(int argc, const char* const* argv) : cli_(argc, argv) {
   int workers = cli_.GetNumParam(kThreadsParamStr);
   if (workers == CLIParameters::kNotFound) workers = 0;
   log_->LogMessage("Launching scheduler...");
-  scheduler_ = new Scheduler(workers);
+  scheduler_.reset(new Scheduler(workers));
   log_->LogMessage("Scheduler started with ", scheduler_->GetNumberOfWorkers(),
                    " threads.");
 }
 
-Core::~Core() {
-  log_->LogMessage("Stopping...");
-  if (scheduler_) delete scheduler_;
-  if (log_) delete log_;
-}
+Core::~Core() { log_->LogMessage("Stopping..."); }
 
 void Core::Initialize(const ModuleCenter* mc) { mc_ = mc; }
 
@@ -86,7 +82,7 @@ void Core::Quit(int exit_code) {
 }
 
 int Core::WaitForQuit() {
-  log_->LogMessage("Ready, waiting for shutdown...");
+  log_->LogMessage("Ready, idling...");
   std::unique_lock<std::mutex> lock(mutex_);
   int exit_code = exit_code_.load(std::memory_order_acquire);
   while (exit_code == kNoExitCode) {

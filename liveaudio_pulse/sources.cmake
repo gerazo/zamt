@@ -1,4 +1,5 @@
 set(module_cpps
+  LiveAudio.cpp
 )
 
 

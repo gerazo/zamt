@@ -8,6 +8,7 @@
 
 #include <atomic>
 #include <condition_variable>
+#include <memory>
 #include <mutex>
 
 namespace zamt {
@@ -20,6 +21,7 @@ class Core : public Module {
   const static int kExitCodeHelp = 100;
   const static int kExitCodeSIGTERM = 101;
   const static int kExitCodeSIGINT = 102;
+  const static int kExitCodeAudioProblem = 200;
 
   const static char* kModuleLabel;
   const static char* kHelpParamStr;
@@ -56,9 +58,9 @@ class Core : public Module {
   static std::condition_variable cond_var_;
 
   const ModuleCenter* mc_ = nullptr;
-  Log* log_ = nullptr;
+  std::unique_ptr<Log> log_;
   CLIParameters cli_;
-  Scheduler* scheduler_ = nullptr;
+  std::unique_ptr<Scheduler> scheduler_;
 };
 
 }  // namespace zamt
