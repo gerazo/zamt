@@ -44,7 +44,7 @@ class LiveAudio : public Module {
   const static char* kDeviceSelectParamStr;
   const static char* kLatencyParamStr;
   const static int kAudioBufferSize = 65536;
-  const static int kDefaultRequestedLatency = 480 * 2;
+  const static int kDefaultRequestedLatency = 432 * 2;
 
   LiveAudio(int argc, const char* const* argv);
   ~LiveAudio();

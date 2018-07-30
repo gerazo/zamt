@@ -275,6 +275,7 @@ void LiveAudio::OpenStream(const char* source_name) {
   pa_stream_set_read_callback(
       stream_, zamt_liveaudio_internal::stream_read_callback, this);
   pa_buffer_attr buffer_attr;
+  memset(&buffer_attr, 0, sizeof(buffer_attr));
   buffer_attr.maxlength = (uint32_t)kAudioBufferSize;
   buffer_attr.tlength = (uint32_t)-1;
   buffer_attr.prebuf = (uint32_t)-1;
