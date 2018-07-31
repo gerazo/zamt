@@ -118,28 +118,43 @@ void stream_notify_callback(pa_stream* p, void* userdata) {
         "Total buffer size: ",
         (int)buffer_attr->maxlength / zamt::LiveAudio::kChannels, " samples");
     la->log_->LogMessage(
-        "Fragment size: ",
+        "Average fragment size: ",
         (int)buffer_attr->fragsize / zamt::LiveAudio::kChannels, " samples");
   }
 }
 
-void stream_read_callback(pa_stream* p, size_t /*nbytes*/, void* userdata) {
+void stream_read_callback(pa_stream* p, size_t nbytes, void* userdata) {
   zamt::LiveAudio* la = (zamt::LiveAudio*)userdata;
   assert(p == la->stream_);
   (void)p;
+  assert(nbytes > 0);
   const void* data = nullptr;
-  size_t nbytes = 0;
-  int err = pa_stream_peek(la->stream_, &data, &nbytes);
-  assert(err == 0);
-  (void)err;
-  if (nbytes == 0) return;
-  if (data == nullptr) {
-    // TODO: pass silence
-  } else {
-    // TODO: pass data
+  size_t bytes_in_buf = 0;
+  int err;
+  while (nbytes > 0) {
+    err = pa_stream_peek(la->stream_, &data, &bytes_in_buf);
+    assert(err == 0);
+    nbytes -= bytes_in_buf;
+    if (bytes_in_buf == 0) return;
+    if (data == nullptr) {
+      // TODO: pass silence
+    } else {
+      // TODO: pass data
+    }
+    uint64_t latency, time;
+    int negative;
+    err = pa_stream_get_time(la->stream_, &time);
+    if (err != -PA_ERR_NODATA) {
+      // TODO: calc timestamp
+    }
+    err = pa_stream_get_latency(la->stream_, &latency, &negative);
+    if (err != -PA_ERR_NODATA) {
+      // TODO: calc average latency
+    }
+    err = pa_stream_drop(la->stream_);
+    assert(err == 0);
   }
-  err = pa_stream_drop(la->stream_);
-  assert(err == 0);
+  (void)err;
 }
 
 }  // namespace zamt_liveaudio_internal
@@ -179,13 +194,8 @@ LiveAudio::LiveAudio(int argc, const char* const* argv)
   if (req_latency != CLIParameters::kNotFound) {
     requested_latency_ = req_latency * kChannels;
   } else {
-    // Heuristics to stay slightly below realtime with nice fragment size
-    int latency = 16;
     int exact_latency = requested_sample_rate_ * kRealtimeLatencyInMs / 1000;
-    while (latency < exact_latency) latency <<= 1;
-    int step = latency >> 3;
-    while (latency > exact_latency) latency -= step;
-    requested_latency_ = latency * kChannels;
+    requested_latency_ = exact_latency * kChannels;
   }
   audio_loop_should_run_.store(true, std::memory_order_release);
 }
@@ -267,15 +277,18 @@ void LiveAudio::OpenStream(const char* source_name) {
       stream_, zamt_liveaudio_internal::stream_notify_callback, this);
   pa_stream_set_read_callback(
       stream_, zamt_liveaudio_internal::stream_read_callback, this);
+
   pa_buffer_attr buffer_attr;
-  buffer_attr.maxlength = (uint32_t)kAudioBufferSize;
+  int hw_buffer_size =
+      requested_sample_rate_ * kMaxLatencyForHardwareBufferInMs / 1000;
+  buffer_attr.maxlength = (uint32_t)hw_buffer_size * kChannels;
   buffer_attr.tlength = (uint32_t)-1;
   buffer_attr.prebuf = (uint32_t)-1;
   buffer_attr.minreq = (uint32_t)-1;
   buffer_attr.fragsize = (uint32_t)requested_latency_;
-  pa_stream_flags_t flags = (pa_stream_flags_t)(PA_STREAM_AUTO_TIMING_UPDATE |
-                                                PA_STREAM_INTERPOLATE_TIMING |
-                                                PA_STREAM_ADJUST_LATENCY);
+  pa_stream_flags_t flags = (pa_stream_flags_t)(
+      PA_STREAM_AUTO_TIMING_UPDATE | PA_STREAM_INTERPOLATE_TIMING |
+      PA_STREAM_NOT_MONOTONIC | PA_STREAM_ADJUST_LATENCY);
   int err;
   err = pa_stream_connect_record(stream_, source_name, &buffer_attr, flags);
   assert(err == 0);
@@ -289,7 +302,7 @@ void LiveAudio::PrintHelp() {
       " default 44100Hz.");
   Log::Print(
       " -atNum         Set requested latency to Num samples instead of the"
-      " automatic setting putting latency below 10ms.");
+      " automatic setting putting latency to 10ms.");
   Log::Print(" -al            List all available audio sources.");
   Log::Print(
       " -adSrcNumber   Use SrcNumber audio source from the list of sources"

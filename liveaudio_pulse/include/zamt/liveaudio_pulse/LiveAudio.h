@@ -46,7 +46,7 @@ class LiveAudio : public Module {
   const static char* kLatencyParamStr;
   const static char* kSampleRateParamStr;
   const static int kChannels = 2;  // stereo
-  const static int kAudioBufferSize = 8192 * kChannels;
+  const static int kMaxLatencyForHardwareBufferInMs = 200;
   const static int kRealtimeLatencyInMs = 10;
 
   LiveAudio(int argc, const char* const* argv);
