@@ -14,6 +14,7 @@
 #include <memory>
 #include <thread>
 
+struct pa_proplist;
 struct pa_context;
 struct pa_mainloop;
 struct pa_source_info;
@@ -43,17 +44,20 @@ class LiveAudio : public Module {
   const static char* kDeviceListParamStr;
   const static char* kDeviceSelectParamStr;
   const static char* kLatencyParamStr;
-  const static int kAudioBufferSize = 65536;
-  const static int kDefaultRequestedLatency = 432 * 2;
+  const static char* kSampleRateParamStr;
+  const static int kChannels = 2;  // stereo
+  const static int kAudioBufferSize = 8192 * kChannels;
+  const static int kRealtimeLatencyInMs = 10;
 
   LiveAudio(int argc, const char* const* argv);
   ~LiveAudio();
 
   void Initialize(const ModuleCenter* mc);
+  bool IsRunning() const { return (bool)audio_loop_; }
 
  private:
   const static int kWatchDogSeconds = 3;
-
+  const static int kDefaultSampleRate = 44100;
   const static int kDefaultDeviceSelected = -1;
   const static int kDeviceListSelected = -2;
 
@@ -67,6 +71,7 @@ class LiveAudio : public Module {
                                                             size_t nbytes,
                                                             void* userdata);
 
+  bool HadNormalOpen() const { return sample_rate_ != 0; }
   void RunMainLoop();
   void OpenStream(const char* source_name);
   void PrintHelp();
@@ -76,11 +81,13 @@ class LiveAudio : public Module {
   Scheduler* scheduler_ = nullptr;
   size_t scheduler_id_;
   int selected_device_ = kDefaultDeviceSelected;
-  int requested_latency_ = kDefaultRequestedLatency;
+  int requested_latency_;
+  int requested_sample_rate_ = kDefaultSampleRate;
   int sample_rate_ = 0;
 
   std::atomic<bool> audio_loop_should_run_;
   std::unique_ptr<std::thread> audio_loop_;
+  pa_proplist* proplist_ = nullptr;
   pa_mainloop* mainloop_ = nullptr;
   pa_context* context_ = nullptr;
   pa_stream* stream_ = nullptr;
