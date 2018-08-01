@@ -8,9 +8,11 @@
 /// Own thread is used to interact with audio library for skipless recording.
 
 #include "zamt/core/Module.h"
+#include "zamt/core/Scheduler.h"
 
 #include <atomic>
 #include <cstddef>
+#include <cstdint>
 #include <memory>
 #include <thread>
 
@@ -37,6 +39,8 @@ class Scheduler;
 
 class LiveAudio : public Module {
  public:
+  using Sample = int16_t;
+
   const static char* kModuleLabel;
   const static char* kApplicationName;
   const static char* kApplicationID;
@@ -76,6 +80,7 @@ class LiveAudio : public Module {
   bool HadNormalOpen() const { return sample_rate_ != 0; }
   void RunMainLoop();
   void OpenStream(const char* source_name);
+  void ProcessFragment(Sample* buffer, int samples);
   void PrintHelp();
 
   std::unique_ptr<Log> log_;
@@ -88,6 +93,8 @@ class LiveAudio : public Module {
   int submit_buffer_size_ = 0;
   int hw_fragment_size_ = 0;
   int sample_rate_ = 0;
+  Scheduler::Time last_timestamp_;
+  int hw_latency_in_us_ = 0;
 
   std::atomic<bool> audio_loop_should_run_;
   std::unique_ptr<std::thread> audio_loop_;

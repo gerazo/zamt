@@ -4,7 +4,6 @@
 #include "zamt/core/Core.h"
 #include "zamt/core/Log.h"
 #include "zamt/core/ModuleCenter.h"
-#include "zamt/core/Scheduler.h"
 
 #include <pulse/context.h>
 #include <pulse/def.h>
@@ -17,6 +16,7 @@
 #include <pulse/timeval.h>
 
 #include <cassert>
+#include <chrono>
 #include <cstdio>
 #include <cstring>
 
@@ -120,6 +120,7 @@ void stream_notify_callback(pa_stream* p, void* userdata) {
     la->log_->LogMessage(
         "Average hardware fragment size: ",
         (int)buffer_attr->fragsize / zamt::LiveAudio::kChannels, " samples");
+    la->hw_latency_in_us_ = 1000000 * la->hw_fragment_size_ / la->sample_rate_;
   }
 }
 
@@ -136,21 +137,7 @@ void stream_read_callback(pa_stream* p, size_t nbytes, void* userdata) {
     assert(err == 0);
     nbytes -= bytes_in_buf;
     if (bytes_in_buf == 0) return;
-    if (data == nullptr) {
-      // TODO: pass silence
-    } else {
-      // TODO: pass data
-    }
-    uint64_t latency, time;
-    int negative;
-    err = pa_stream_get_time(la->stream_, &time);
-    if (err != -PA_ERR_NODATA) {
-      // TODO: calc timestamp
-    }
-    err = pa_stream_get_latency(la->stream_, &latency, &negative);
-    if (err != -PA_ERR_NODATA) {
-      // TODO: calc average latency
-    }
+    la->ProcessFragment((zamt::LiveAudio::Sample*)data, (int)bytes_in_buf);
     err = pa_stream_drop(la->stream_);
     assert(err == 0);
   }
@@ -233,7 +220,7 @@ void LiveAudio::Initialize(const ModuleCenter* mc) {
 
   scheduler_ = &mc_->Get<Core>().scheduler();
   scheduler_->RegisterSource(
-      scheduler_id_, submit_buffer_size_ * kChannels * (int)sizeof(uint16_t),
+      scheduler_id_, submit_buffer_size_ * kChannels * (int)sizeof(Sample),
       queue_capacity);
   log_->LogMessage("Launching audio thread...");
   audio_loop_.reset(new std::thread(&LiveAudio::RunMainLoop, this));
@@ -314,6 +301,28 @@ void LiveAudio::OpenStream(const char* source_name) {
   err = pa_stream_connect_record(stream_, source_name, &buffer_attr, flags);
   assert(err == 0);
   (void)err;
+}
+
+void LiveAudio::ProcessFragment(Sample* buffer, int samples) {
+  Scheduler::Time current_time = std::chrono::microseconds(std::chrono::high_resolution_clock::now().time_since_epoch()).count();
+  pa_usec_t latency;
+  int is_negative;
+  int err = pa_stream_get_latency(la->stream_, &latency, &is_negative);
+  if (err == -PA_ERR_NODATA) {
+    // fake it
+    assert(hw_latency_in_us_);
+    latency = hw_latency_in_us_;
+    is_negative = 0;
+  }
+  if (is_negative) latency = -latency;
+  Scheduler::Time timestamp = current_time - latency;
+  if (timestamp <= last_timestamp_) timestamp = last_timestamp_ + 1;
+  last_timestamp_ = timestamp;
+  if (buffer == nullptr) {
+    // TODO: pass silence
+  } else {
+    // TODO: pass data
+  }
 }
 
 void LiveAudio::PrintHelp() {
