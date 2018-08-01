@@ -47,17 +47,19 @@ class LiveAudio : public Module {
   const static char* kSampleRateParamStr;
   const static int kChannels = 2;  // stereo
   const static int kMaxLatencyForHardwareBufferInMs = 200;
-  const static int kRealtimeLatencyInMs = 10;
+  const static int kOverallLatencyInMs = 10;
+  const static int kDefaultSampleRate = 44100;
 
   LiveAudio(int argc, const char* const* argv);
   ~LiveAudio();
 
   void Initialize(const ModuleCenter* mc);
   bool IsRunning() const { return (bool)audio_loop_; }
+  int sample_rate() const { return sample_rate_; }
+  int requested_overall_latency() const { return requested_overall_latency_; }
 
  private:
   const static int kWatchDogSeconds = 3;
-  const static int kDefaultSampleRate = 44100;
   const static int kDefaultDeviceSelected = -1;
   const static int kDeviceListSelected = -2;
 
@@ -81,8 +83,10 @@ class LiveAudio : public Module {
   Scheduler* scheduler_ = nullptr;
   size_t scheduler_id_;
   int selected_device_ = kDefaultDeviceSelected;
-  int requested_latency_;
+  int requested_overall_latency_;
   int requested_sample_rate_ = kDefaultSampleRate;
+  int submit_buffer_size_ = 0;
+  int hw_fragment_size_ = 0;
   int sample_rate_ = 0;
 
   std::atomic<bool> audio_loop_should_run_;

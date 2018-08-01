@@ -115,10 +115,10 @@ void stream_notify_callback(pa_stream* p, void* userdata) {
     assert(buffer_attr);
     la->log_->LogMessage("Sample rate: ", la->sample_rate_, "Hz");
     la->log_->LogMessage(
-        "Total buffer size: ",
+        "Total hardware buffer size: ",
         (int)buffer_attr->maxlength / zamt::LiveAudio::kChannels, " samples");
     la->log_->LogMessage(
-        "Average fragment size: ",
+        "Average hardware fragment size: ",
         (int)buffer_attr->fragsize / zamt::LiveAudio::kChannels, " samples");
   }
 }
@@ -192,10 +192,10 @@ LiveAudio::LiveAudio(int argc, const char* const* argv)
     requested_sample_rate_ = req_sample_rate;
   int req_latency = cli.GetNumParam(kLatencyParamStr);
   if (req_latency != CLIParameters::kNotFound) {
-    requested_latency_ = req_latency * kChannels;
+    requested_overall_latency_ = req_latency;
   } else {
-    int exact_latency = requested_sample_rate_ * kRealtimeLatencyInMs / 1000;
-    requested_latency_ = exact_latency * kChannels;
+    int exact_latency = requested_sample_rate_ * kOverallLatencyInMs / 1000;
+    requested_overall_latency_ = exact_latency;
   }
   audio_loop_should_run_.store(true, std::memory_order_release);
 }
@@ -212,8 +212,29 @@ LiveAudio::~LiveAudio() {
 void LiveAudio::Initialize(const ModuleCenter* mc) {
   mc_ = mc;
   if (!audio_loop_should_run_.load(std::memory_order_acquire)) return;
+
+  // Heuristic to find power of 2 submit buffer size and hw latency so overall
+  // stays below limit and hw buffer is preferably larger
+  log_->LogMessage("Requested overall latency: ", requested_overall_latency_,
+                   " samples");
+  submit_buffer_size_ = 65536;
+  while (submit_buffer_size_ > requested_overall_latency_ >> 1)
+    submit_buffer_size_ >>= 1;
+  hw_fragment_size_ = requested_overall_latency_ - submit_buffer_size_;
+  assert(hw_fragment_size_ >= submit_buffer_size_);
+  log_->LogMessage("Requested hardware latency: ", hw_fragment_size_,
+                   " samples");
+  log_->LogMessage("Submit buffer size: ", submit_buffer_size_, " samples");
+  int queue_capacity = requested_sample_rate_ *
+                           kMaxLatencyForHardwareBufferInMs / 1000 /
+                           submit_buffer_size_ +
+                       1;
+  log_->LogMessage("Queue capacity: ", queue_capacity, " packets");
+
   scheduler_ = &mc_->Get<Core>().scheduler();
-  scheduler_->RegisterSource(scheduler_id_, 512, 16);
+  scheduler_->RegisterSource(
+      scheduler_id_, submit_buffer_size_ * kChannels * (int)sizeof(uint16_t),
+      queue_capacity);
   log_->LogMessage("Launching audio thread...");
   audio_loop_.reset(new std::thread(&LiveAudio::RunMainLoop, this));
 }
@@ -285,7 +306,7 @@ void LiveAudio::OpenStream(const char* source_name) {
   buffer_attr.tlength = (uint32_t)-1;
   buffer_attr.prebuf = (uint32_t)-1;
   buffer_attr.minreq = (uint32_t)-1;
-  buffer_attr.fragsize = (uint32_t)requested_latency_;
+  buffer_attr.fragsize = (uint32_t)hw_fragment_size_ * kChannels;
   pa_stream_flags_t flags = (pa_stream_flags_t)(
       PA_STREAM_AUTO_TIMING_UPDATE | PA_STREAM_INTERPOLATE_TIMING |
       PA_STREAM_NOT_MONOTONIC | PA_STREAM_ADJUST_LATENCY);
