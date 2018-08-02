@@ -304,22 +304,29 @@ void LiveAudio::OpenStream(const char* source_name) {
 }
 
 void LiveAudio::ProcessFragment(Sample* buffer, int samples) {
-  Scheduler::Time current_time = std::chrono::microseconds(std::chrono::high_resolution_clock::now().time_since_epoch()).count();
+  Scheduler::Time current_time =
+      (Scheduler::Time)std::chrono::duration_cast<std::chrono::microseconds>(
+          std::chrono::high_resolution_clock::now().time_since_epoch())
+          .count();
   pa_usec_t latency;
   int is_negative;
-  int err = pa_stream_get_latency(la->stream_, &latency, &is_negative);
+  int err = pa_stream_get_latency(stream_, &latency, &is_negative);
   if (err == -PA_ERR_NODATA) {
     // fake it
-    assert(hw_latency_in_us_);
-    latency = hw_latency_in_us_;
+    assert(hw_latency_in_us_ > 0);
+    latency = (pa_usec_t)hw_latency_in_us_;
     is_negative = 0;
   }
-  if (is_negative) latency = -latency;
-  Scheduler::Time timestamp = current_time - latency;
+  Scheduler::Time timestamp;
+  if (is_negative)
+    timestamp = current_time + latency;
+  else
+    timestamp = current_time - latency;
   if (timestamp <= last_timestamp_) timestamp = last_timestamp_ + 1;
   last_timestamp_ = timestamp;
   if (buffer == nullptr) {
     // TODO: pass silence
+    (void)samples;
   } else {
     // TODO: pass data
   }
