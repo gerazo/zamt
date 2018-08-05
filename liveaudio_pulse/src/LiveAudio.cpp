@@ -111,15 +111,18 @@ void stream_notify_callback(pa_stream* p, void* userdata) {
     assert(sample_spec->channels == zamt::LiveAudio::kChannels);
     assert(sample_spec->format == PA_SAMPLE_S16LE);
     la->sample_rate_ = (int)sample_spec->rate;
+    la->usec_per_sample_shl_ =
+        (1000000 << zamt::LiveAudio::kUSecPerSampleShift) / la->sample_rate_;
     const pa_buffer_attr* buffer_attr = pa_stream_get_buffer_attr(la->stream_);
     assert(buffer_attr);
+    la->hw_fragment_size_ =
+        (int)buffer_attr->fragsize / zamt::LiveAudio::kChannels;
     la->log_->LogMessage("Sample rate: ", la->sample_rate_, "Hz");
     la->log_->LogMessage(
         "Total hardware buffer size: ",
         (int)buffer_attr->maxlength / zamt::LiveAudio::kChannels, " samples");
-    la->log_->LogMessage(
-        "Average hardware fragment size: ",
-        (int)buffer_attr->fragsize / zamt::LiveAudio::kChannels, " samples");
+    la->log_->LogMessage("Average hardware fragment size: ",
+                         la->hw_fragment_size_, " samples");
     la->hw_latency_in_us_ = 1000000 * la->hw_fragment_size_ / la->sample_rate_;
   }
 }
@@ -137,7 +140,10 @@ void stream_read_callback(pa_stream* p, size_t nbytes, void* userdata) {
     assert(err == 0);
     nbytes -= bytes_in_buf;
     if (bytes_in_buf == 0) return;
-    la->ProcessFragment((zamt::LiveAudio::Sample*)data, (int)bytes_in_buf);
+    assert((int)bytes_in_buf % (int)sizeof(zamt::LiveAudio::StereoSample) == 0);
+    la->ProcessFragment(
+        (zamt::LiveAudio::StereoSample*)data,
+        (int)bytes_in_buf / (int)sizeof(zamt::LiveAudio::StereoSample));
     err = pa_stream_drop(la->stream_);
     assert(err == 0);
   }
@@ -194,6 +200,7 @@ LiveAudio::~LiveAudio() {
   audio_loop_should_run_.store(false, std::memory_order_release);
   audio_loop_->join();
   log_->LogMessage("Audio thread stopped.");
+  if (sample_buffer_) delete sample_buffer_;
 }
 
 void LiveAudio::Initialize(const ModuleCenter* mc) {
@@ -218,10 +225,13 @@ void LiveAudio::Initialize(const ModuleCenter* mc) {
                        1;
   log_->LogMessage("Queue capacity: ", queue_capacity, " packets");
 
+  sample_buffer_ = new StereoSample[submit_buffer_size_];
+  assert(sample_buffer_);
+
   scheduler_ = &mc_->Get<Core>().scheduler();
-  scheduler_->RegisterSource(
-      scheduler_id_, submit_buffer_size_ * kChannels * (int)sizeof(Sample),
-      queue_capacity);
+  scheduler_->RegisterSource(scheduler_id_,
+                             submit_buffer_size_ * (int)sizeof(StereoSample),
+                             queue_capacity);
   log_->LogMessage("Launching audio thread...");
   audio_loop_.reset(new std::thread(&LiveAudio::RunMainLoop, this));
 }
@@ -303,32 +313,84 @@ void LiveAudio::OpenStream(const char* source_name) {
   (void)err;
 }
 
-void LiveAudio::ProcessFragment(Sample* buffer, int samples) {
+void LiveAudio::ProcessFragment(StereoSample* buffer, int samples) {
   Scheduler::Time current_time =
       (Scheduler::Time)std::chrono::duration_cast<std::chrono::microseconds>(
           std::chrono::high_resolution_clock::now().time_since_epoch())
           .count();
+  assert(sample_buffer_);
+  assert(sample_buffer_filled_ >= 0 &&
+         sample_buffer_filled_ < submit_buffer_size_);
+  assert(samples > 0);
   pa_usec_t latency;
   int is_negative;
   int err = pa_stream_get_latency(stream_, &latency, &is_negative);
   if (err == -PA_ERR_NODATA) {
-    // fake it
+    // fake it (this may be the 1st buffer and no timing update was done)
     assert(hw_latency_in_us_ > 0);
     latency = (pa_usec_t)hw_latency_in_us_;
     is_negative = 0;
   }
-  Scheduler::Time timestamp;
+  Scheduler::Time buffer_timestamp;
   if (is_negative)
-    timestamp = current_time + latency;
+    buffer_timestamp = current_time + latency;
   else
-    timestamp = current_time - latency;
-  if (timestamp <= last_timestamp_) timestamp = last_timestamp_ + 1;
-  last_timestamp_ = timestamp;
-  if (buffer == nullptr) {
-    // TODO: pass silence
-    (void)samples;
-  } else {
-    // TODO: pass data
+    buffer_timestamp = current_time - latency;
+  assert(usec_per_sample_shl_ > 0);
+
+  assert(scheduler_);
+  while (samples > 0) {
+    int free_left_in_buffer = submit_buffer_size_ - sample_buffer_filled_;
+    assert(free_left_in_buffer > 0);
+
+    if (samples >= free_left_in_buffer) {
+      StereoSample* packet =
+          (StereoSample*)scheduler_->GetPacketForSubmission(scheduler_id_);
+      assert(packet);
+      if (packet == nullptr) {
+        // drop buffer and signal error
+        log_->LogMessage("Buffer overrun, data lost!!!");
+        return;
+      }
+
+      if (sample_buffer_filled_ > 0) {
+        memcpy(packet, sample_buffer_,
+               (size_t)sample_buffer_filled_ * sizeof(StereoSample));
+      }
+      if (buffer)
+        memcpy(packet + sample_buffer_filled_, buffer,
+               (size_t)free_left_in_buffer * sizeof(StereoSample));
+      else
+        memset(packet + sample_buffer_filled_, 0,
+               (size_t)free_left_in_buffer * sizeof(StereoSample));
+      samples -= free_left_in_buffer;
+      assert(samples >= 0);
+      buffer += free_left_in_buffer;
+
+      Scheduler::Time timestamp =
+          buffer_timestamp -
+          (unsigned)(sample_buffer_filled_ * usec_per_sample_shl_ >>
+                     kUSecPerSampleShift);
+      if (timestamp <= last_timestamp_) timestamp = last_timestamp_ + 1;
+      last_timestamp_ = timestamp;
+      scheduler_->SubmitPacket(scheduler_id_, (Scheduler::Byte*)packet,
+                               timestamp);
+
+      buffer_timestamp +=
+          (unsigned)(free_left_in_buffer * usec_per_sample_shl_ >>
+                     kUSecPerSampleShift);
+      sample_buffer_filled_ = 0;
+    } else {
+      if (buffer)
+        memcpy(sample_buffer_ + sample_buffer_filled_, buffer,
+               (size_t)samples * sizeof(StereoSample));
+      else
+        memset(sample_buffer_ + sample_buffer_filled_, 0,
+               (size_t)samples * sizeof(StereoSample));
+      sample_buffer_filled_ += samples;
+      assert(sample_buffer_filled_ < submit_buffer_size_);
+      break;
+    }
   }
 }
 

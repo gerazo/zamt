@@ -40,6 +40,10 @@ class Scheduler;
 class LiveAudio : public Module {
  public:
   using Sample = int16_t;
+  struct StereoSample {
+    Sample left;
+    Sample right;
+  };
 
   const static char* kModuleLabel;
   const static char* kApplicationName;
@@ -54,6 +58,8 @@ class LiveAudio : public Module {
   const static int kOverallLatencyInMs = 10;
   const static int kDefaultSampleRate = 44100;
 
+  static_assert(sizeof(Sample) * kChannels == sizeof(StereoSample), "");
+
   LiveAudio(int argc, const char* const* argv);
   ~LiveAudio();
 
@@ -66,6 +72,7 @@ class LiveAudio : public Module {
   const static int kWatchDogSeconds = 3;
   const static int kDefaultDeviceSelected = -1;
   const static int kDeviceListSelected = -2;
+  const static int kUSecPerSampleShift = 8;
 
   friend void zamt_liveaudio_internal::context_notify_callback(pa_context* c,
                                                                void* userdata);
@@ -80,21 +87,25 @@ class LiveAudio : public Module {
   bool HadNormalOpen() const { return sample_rate_ != 0; }
   void RunMainLoop();
   void OpenStream(const char* source_name);
-  void ProcessFragment(Sample* buffer, int samples);
+  void ProcessFragment(StereoSample* buffer, int samples);
   void PrintHelp();
 
   std::unique_ptr<Log> log_;
   const ModuleCenter* mc_ = nullptr;
   Scheduler* scheduler_ = nullptr;
-  size_t scheduler_id_;
+  Scheduler::SourceId scheduler_id_;
   int selected_device_ = kDefaultDeviceSelected;
   int requested_overall_latency_;
   int requested_sample_rate_ = kDefaultSampleRate;
-  int submit_buffer_size_ = 0;
-  int hw_fragment_size_ = 0;
+  int submit_buffer_size_ = 0;  // stereo samples
+  int hw_fragment_size_ = 0;    // stereo samples
   int sample_rate_ = 0;
-  Scheduler::Time last_timestamp_;
+  int usec_per_sample_shl_ = 0;
+  Scheduler::Time last_timestamp_;  // in microseconds
   int hw_latency_in_us_ = 0;
+
+  StereoSample* sample_buffer_ = nullptr;
+  int sample_buffer_filled_ = 0;
 
   std::atomic<bool> audio_loop_should_run_;
   std::unique_ptr<std::thread> audio_loop_;
