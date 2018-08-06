@@ -8,6 +8,8 @@
 
 #include <atomic>
 #include <condition_variable>
+#include <deque>
+#include <functional>
 #include <memory>
 #include <mutex>
 
@@ -18,6 +20,8 @@ class Scheduler;
 
 class Core : public Module {
  public:
+  using OnQuitCallback = std::function<void(int exit_code)>;
+
   const static int kExitCodeHelp = 100;
   const static int kExitCodeSIGTERM = 101;
   const static int kExitCodeSIGINT = 102;
@@ -41,6 +45,10 @@ class Core : public Module {
   void Quit(int exit_code);
   /// Blocks execution until someone calls Quit(), returns the exit code.
   int WaitForQuit();
+  /// The given function is called immediately when quit is called before
+  /// core thread starts the shutdown process. Objects should not rely on
+  /// other objects existence after this point.
+  void RegisterForQuitEvent(OnQuitCallback on_quit_callback);
 
   /// Get CLIParameters
   CLIParameters& cli() { return cli_; }
@@ -61,6 +69,7 @@ class Core : public Module {
   std::unique_ptr<Log> log_;
   CLIParameters cli_;
   std::unique_ptr<Scheduler> scheduler_;
+  std::deque<OnQuitCallback> on_quit_callbacks_;
 };
 
 }  // namespace zamt

@@ -194,13 +194,11 @@ LiveAudio::LiveAudio(int argc, const char* const* argv)
 }
 
 LiveAudio::~LiveAudio() {
-  log_->LogMessage("Stopping...");
-  if (!IsRunning()) return;
+  if (!WasStarted()) return;
   log_->LogMessage("Waiting for audio thread to stop...");
-  audio_loop_should_run_.store(false, std::memory_order_release);
   audio_loop_->join();
   log_->LogMessage("Audio thread stopped.");
-  if (sample_buffer_) delete sample_buffer_;
+  if (sample_buffer_) delete[] sample_buffer_;
 }
 
 void LiveAudio::Initialize(const ModuleCenter* mc) {
@@ -228,12 +226,21 @@ void LiveAudio::Initialize(const ModuleCenter* mc) {
   sample_buffer_ = new StereoSample[submit_buffer_size_];
   assert(sample_buffer_);
 
-  scheduler_ = &mc_->Get<Core>().scheduler();
+  Core& core = mc_->Get<Core>();
+  core.RegisterForQuitEvent(
+      std::bind(&LiveAudio::Shutdown, this, std::placeholders::_1));
+  scheduler_ = &core.scheduler();
   scheduler_->RegisterSource(scheduler_id_,
                              submit_buffer_size_ * (int)sizeof(StereoSample),
                              queue_capacity);
   log_->LogMessage("Launching audio thread...");
   audio_loop_.reset(new std::thread(&LiveAudio::RunMainLoop, this));
+}
+
+void LiveAudio::Shutdown(int /*exit_code*/) {
+  log_->LogMessage("Stopping...");
+  if (!WasStarted()) return;
+  audio_loop_should_run_.store(false, std::memory_order_release);
 }
 
 void LiveAudio::RunMainLoop() {
@@ -322,6 +329,7 @@ void LiveAudio::ProcessFragment(StereoSample* buffer, int samples) {
   assert(sample_buffer_filled_ >= 0 &&
          sample_buffer_filled_ < submit_buffer_size_);
   assert(samples > 0);
+  if (!audio_loop_should_run_.load(std::memory_order_acquire)) return;
   pa_usec_t latency;
   int is_negative;
   int err = pa_stream_get_latency(stream_, &latency, &is_negative);

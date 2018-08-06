@@ -74,6 +74,9 @@ void Core::Initialize(const ModuleCenter* mc) { mc_ = mc; }
 
 void Core::Quit(int exit_code) {
   log_->LogMessage("Shutdown initiated with exit code ", exit_code);
+  for (const auto& quit_cb : on_quit_callbacks_) {
+    quit_cb(exit_code);
+  }
   {
     std::lock_guard<std::mutex> lock(mutex_);
     exit_code_.store(exit_code, std::memory_order_release);
@@ -92,6 +95,10 @@ int Core::WaitForQuit() {
   }
   log_->LogMessage("Shutdown started with exit code ", exit_code);
   return exit_code;
+}
+
+void Core::RegisterForQuitEvent(OnQuitCallback on_quit_callback) {
+  on_quit_callbacks_.push_back(on_quit_callback);
 }
 
 Scheduler& Core::scheduler() {

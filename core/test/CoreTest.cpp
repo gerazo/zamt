@@ -52,10 +52,34 @@ void ShutsDownForSignal(int signal_number) {
   thr.join();
 }
 
+int g_lambda_sets_to_exit_code = 0;
+
+struct QuitClient {
+  int member_sets_to_exit_code = 0;
+  void SetToExitCode(int exit_code) { member_sets_to_exit_code = exit_code; }
+};
+
+void CanRegisterMemberFunction() {
+  ModuleCenter mc(sizeof(params) / sizeof(char*), params);
+  Core& core = mc.Get<zamt::Core>();
+  Core::ReInitExitCode();
+  core.RegisterForQuitEvent(
+      [](int exit_code) { g_lambda_sets_to_exit_code = exit_code; });
+  QuitClient qc;
+  core.RegisterForQuitEvent(
+      std::bind(&QuitClient::SetToExitCode, &qc, std::placeholders::_1));
+  std::thread thr(CallQuitAtOnce, &core);
+  EXPECT(core.WaitForQuit() == 98);
+  EXPECT(g_lambda_sets_to_exit_code == 98);
+  EXPECT(qc.member_sets_to_exit_code == 98);
+  thr.join();
+}
+
 TEST_BEGIN() {
   ShutsDownFromOtherThread();
   ShutsDownFromOtherThreadImmediately();
   ShutsDownForSignal(SIGINT);
   ShutsDownForSignal(SIGTERM);
+  CanRegisterMemberFunction();
 }
 TEST_END()

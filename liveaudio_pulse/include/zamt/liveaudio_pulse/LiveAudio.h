@@ -64,7 +64,8 @@ class LiveAudio : public Module {
   ~LiveAudio();
 
   void Initialize(const ModuleCenter* mc);
-  bool IsRunning() const { return (bool)audio_loop_; }
+  void Shutdown(int exit_code);
+  bool WasStarted() const { return (bool)audio_loop_; }
   int sample_rate() const { return sample_rate_; }
   int requested_overall_latency() const { return requested_overall_latency_; }
 
