@@ -111,7 +111,7 @@ void Core::PrintHelp() {
   Log::Print(" -h             Get help from all active modules and quit.");
   Log::Print(
       " -jNum          Set number of worker threads in scheduler."
-      " 0 means autodetect.");
+      " 0 means autodetect (default).");
 }
 
 std::atomic<int> Core::exit_code_(Core::kNoExitCode);

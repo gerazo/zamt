@@ -121,8 +121,8 @@ void stream_notify_callback(pa_stream* p, void* userdata) {
     la->log_->LogMessage(
         "Total hardware buffer size: ",
         (int)buffer_attr->maxlength / zamt::LiveAudio::kChannels, " samples");
-    la->log_->LogMessage("Average hardware fragment size: ",
-                         la->hw_fragment_size_, " samples");
+    la->log_->LogMessage(
+        "Average hardware fragment size: ", la->hw_fragment_size_, " samples");
     la->hw_latency_in_us_ = 1000000 * la->hw_fragment_size_ / la->sample_rate_;
   }
 }
