@@ -11,6 +11,7 @@
  * a UI task.
  */
 
+#include "zamt/core/CLIParameters.h"
 #include "zamt/core/Module.h"
 
 #include <memory>
@@ -33,6 +34,7 @@ class Visualization : public Module {
   void RunMainLoop();
 
   const ModuleCenter* mc_ = nullptr;
+  CLIParameters cli_;
   std::unique_ptr<Log> log_;
   std::unique_ptr<std::thread> visualization_loop_;
 };

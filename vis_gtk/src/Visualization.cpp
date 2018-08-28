@@ -1,6 +1,5 @@
 #include "zamt/vis_gtk/Visualization.h"
 
-#include "zamt/core/CLIParameters.h"
 #include "zamt/core/Core.h"
 #include "zamt/core/Log.h"
 #include "zamt/core/ModuleCenter.h"
@@ -9,10 +8,10 @@ namespace zamt {
 
 const char* Visualization::kModuleLabel = "vis_gtk";
 
-Visualization::Visualization(int argc, const char* const* argv) {
-  CLIParameters cli(argc, argv);
-  log_.reset(new Log(kModuleLabel, cli));
-  if (cli.HasParam(Core::kHelpParamStr)) return;
+Visualization::Visualization(int argc, const char* const* argv)
+    : cli_(argc, argv) {
+  log_.reset(new Log(kModuleLabel, cli_));
+  if (cli_.HasParam(Core::kHelpParamStr)) return;
   log_->LogMessage("Starting...");
   visualization_loop_.reset(new std::thread(&Visualization::RunMainLoop, this));
 }
