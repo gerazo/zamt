@@ -50,25 +50,30 @@ int Scheduler::GetPacketSize(SourceId source_id) {
 }
 
 void Scheduler::Subscribe(SourceId source_id, SinkCallback sink_callback,
-                          void* _this, bool on_UI) {
-  Source& src = GetSourceById(source_id);
-  LockSource(src);
-  assert(std::find(src.subscriptions.begin(), src.subscriptions.end(),
-                   Subscription(sink_callback, nullptr, false)) ==
-         src.subscriptions.end());
-  src.subscriptions.emplace_back(sink_callback, _this, on_UI);
-  UnlockSource(src);
-}
-
-void Scheduler::Unsubscribe(SourceId source_id, SinkCallback sink_callback) {
+                          bool on_UI, int& subscription_id) {
   Source& src = GetSourceById(source_id);
   LockSource(src);
   auto& subs = src.subscriptions;
-  auto subs_it = std::find(subs.begin(), subs.end(),
-                           Subscription(sink_callback, nullptr, false));
-  assert(subs_it != subs.end());
-  std::swap(*subs_it, subs.back());
-  subs.pop_back();
+  size_t id = 0;
+  while (id < subs.size()) {
+    if (!subs[id].sink_callback) {
+      subs[id].sink_callback = sink_callback;
+      subs[id].on_UI = on_UI;
+      break;
+    }
+    id++;
+  }
+  if (id == subs.size()) subs.emplace_back(sink_callback, on_UI);
+  UnlockSource(src);
+  subscription_id = (int)id;
+}
+
+void Scheduler::Unsubscribe(SourceId source_id, int subscription_id) {
+  Source& src = GetSourceById(source_id);
+  LockSource(src);
+  auto& subs = src.subscriptions;
+  assert(subscription_id >= 0 && subscription_id < (int)subs.size());
+  subs[(size_t)subscription_id].sink_callback = nullptr;
   UnlockSource(src);
 }
 
@@ -107,34 +112,32 @@ void Scheduler::SubmitPacket(SourceId source_id, Byte* packet, Time timestamp) {
   int UI_subscribers = 0;
   int normal_subscribers = 0;
   for (auto& subscription : src.subscriptions) {
-    if (subscription.on_UI)
-      UI_subscribers++;
-    else
-      normal_subscribers++;
+    if (subscription.sink_callback) {
+      if (subscription.on_UI)
+        UI_subscribers++;
+      else
+        normal_subscribers++;
+    }
   }
   if (UI_subscribers) {
     std::lock_guard<std::mutex> lock(UI_queue_mtx_);
     for (auto& subscription : src.subscriptions) {
-      if (!subscription.on_UI) continue;
-      tasks_for_UI_.emplace(timestamp, source_id, subscription.sink_callback,
-                            subscription._this, packet);
-      ++src.packet_refcounts[(size_t)packet_num];
+      if (subscription.sink_callback && subscription.on_UI) {
+        tasks_for_UI_.emplace(timestamp, source_id, subscription.sink_callback,
+                              packet);
+        ++src.packet_refcounts[(size_t)packet_num];
+      }
     }
   }
   if (normal_subscribers) {
     std::lock_guard<std::mutex> lock(worker_queue_mtx_);
     for (auto& subscription : src.subscriptions) {
-      if (subscription.on_UI) continue;
-      tasks_for_workers_.emplace(timestamp, source_id,
-                                 subscription.sink_callback, subscription._this,
-                                 packet);
-      ++src.packet_refcounts[(size_t)packet_num];
+      if (subscription.sink_callback && !subscription.on_UI) {
+        tasks_for_workers_.emplace(timestamp, source_id,
+                                   subscription.sink_callback, packet);
+        ++src.packet_refcounts[(size_t)packet_num];
+      }
     }
-  }
-  for (auto& subscription : src.subscriptions) {
-    bool on_UI = subscription.on_UI;
-    auto& cond_var = on_UI ? UI_queue_cv_ : worker_queue_cv_;
-    cond_var.notify_one();
   }
   if (UI_subscribers) UI_queue_cv_.notify_one();
   while (normal_subscribers--) worker_queue_cv_.notify_one();
@@ -181,9 +184,8 @@ void Scheduler::DispatchTasks(bool UI_thread_mode) {
   auto& mutex = UI_thread_mode ? UI_queue_mtx_ : worker_queue_mtx_;
   auto& cond_var = UI_thread_mode ? UI_queue_cv_ : worker_queue_cv_;
   while (!shutdown_initiated_.load(std::memory_order_acquire)) {
-    SinkCallback sink_callback = nullptr;
+    SinkCallback sink_callback;
     SourceId source_id;
-    void* _this;
     Byte* packet;
     Time timestamp;
     {
@@ -196,30 +198,26 @@ void Scheduler::DispatchTasks(bool UI_thread_mode) {
           !shutdown_initiated_.load(std::memory_order_acquire)) {
         const TaskRef& task_ref = tasks.top();
         Task& task = *task_ref.ptr;
+        assert(task.sink_callback);
+        assert(task.packet);
         sink_callback = task.sink_callback;
         source_id = task.source_id;
-        _this = task._this;
         packet = task.packet;
         timestamp = task_ref.timestamp;
         tasks.pop();
       }
     }
     if (sink_callback) {
-      (*sink_callback)(_this, source_id, packet, timestamp);
+      sink_callback(source_id, packet, timestamp);
     }
     if (UI_thread_mode) return;
   }
 }
 
-Scheduler::Subscription::Subscription(SinkCallback _sink_callback, void* __this,
+Scheduler::Subscription::Subscription(SinkCallback _sink_callback,
                                       bool _on_UI) {
   sink_callback = _sink_callback;
-  _this = __this;
   on_UI = _on_UI;
-}
-
-bool Scheduler::Subscription::operator==(const Subscription& o) const {
-  return sink_callback == o.sink_callback;
 }
 
 Scheduler::SourceRef::SourceRef(SourceId _source_id) : source_id(_source_id) {}
@@ -246,13 +244,11 @@ bool Scheduler::SourceRef::operator<(const SourceRef& o) const {
 }
 
 Scheduler::TaskRef::TaskRef(Time _timestamp, SourceId source_id,
-                            SinkCallback sink_callback, void* _this,
-                            Byte* packet) {
+                            SinkCallback sink_callback, Byte* packet) {
   timestamp = _timestamp;
   ptr.reset(new Task());
   ptr->source_id = source_id;
   ptr->sink_callback = sink_callback;
-  ptr->_this = _this;
   ptr->packet = packet;
 }
 

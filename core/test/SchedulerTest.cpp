@@ -33,19 +33,39 @@ void SourceWithoutSinks() {
   sch.Shutdown();
 }
 
-void NeverCalled(void*, Scheduler::SourceId, const Scheduler::Byte*,
-                 Scheduler::Time) {
+void NeverCalled(Scheduler::SourceId, const Scheduler::Byte*, Scheduler::Time) {
   EXPECT(false);
 }
 
-void EmptyJob(void*, Scheduler::SourceId, const Scheduler::Byte*,
-              Scheduler::Time) {}
+struct Slacker {
+  void EmptyJob(Scheduler::SourceId, const Scheduler::Byte*, Scheduler::Time) {}
+};
 
 void QueueWorksAfterUnsubscribe() {
   Scheduler sch;
   sch.RegisterSource(1, 1024, 4);
-  sch.Subscribe(1, &NeverCalled, nullptr, false);
-  sch.Unsubscribe(1, &NeverCalled);
+  int subscription_id;
+  sch.Subscribe(1, &NeverCalled, false, subscription_id);
+  sch.Unsubscribe(1, subscription_id);
+  uint8_t* p = sch.GetPacketForSubmission(1);
+  sch.SubmitPacket(1, p, 0);
+  for (int i = 0; i < 9; ++i) std::this_thread::yield();
+  sch.Shutdown();
+}
+
+void QueueWorksAfterResubscribe() {
+  Scheduler sch;
+  sch.RegisterSource(1, 1024, 4);
+  int subscription_id1, subscription_id2;
+  sch.Subscribe(1, &NeverCalled, false, subscription_id1);
+  sch.Subscribe(1, &NeverCalled, false, subscription_id2);
+  sch.Unsubscribe(1, subscription_id1);
+  sch.Unsubscribe(1, subscription_id2);
+  Slacker slacker;
+  sch.Subscribe(1,
+                std::bind(&Slacker::EmptyJob, &slacker, std::placeholders::_1,
+                          std::placeholders::_2, std::placeholders::_3),
+                false, subscription_id1);
   uint8_t* p = sch.GetPacketForSubmission(1);
   sch.SubmitPacket(1, p, 0);
   for (int i = 0; i < 9; ++i) std::this_thread::yield();
@@ -55,7 +75,12 @@ void QueueWorksAfterUnsubscribe() {
 void OutOfBufferGivesNull() {
   Scheduler sch;
   sch.RegisterSource(1, 1024, 1);
-  sch.Subscribe(1, &EmptyJob, nullptr, false);
+  int subscription_id;
+  Slacker slacker;
+  sch.Subscribe(1,
+                std::bind(&Slacker::EmptyJob, &slacker, std::placeholders::_1,
+                          std::placeholders::_2, std::placeholders::_3),
+                false, subscription_id);
   uint8_t* p = sch.GetPacketForSubmission(1);
   EXPECT(p);
   uint8_t* pp = sch.GetPacketForSubmission(1);
@@ -82,7 +107,11 @@ void SinkGetsAllPacketsSent() {
   packets_arrived = 0;
   Scheduler sch;
   sch.RegisterSource(1, 1024, packets_to_arrive);
-  sch.Subscribe(1, &CheckPackets, &sch, false);
+  int subscription_id;
+  sch.Subscribe(1,
+                std::bind(&CheckPackets, &sch, std::placeholders::_1,
+                          std::placeholders::_2, std::placeholders::_3),
+                false, subscription_id);
   for (int i = 0; i < packets_to_arrive; ++i) {
     uint8_t* p = sch.GetPacketForSubmission(1);
     p[0] = (uint8_t)i;
@@ -99,7 +128,11 @@ void SinkGetsAllPacketsSentOnUIThread() {
   packets_arrived = 0;
   Scheduler sch;
   sch.RegisterSource(1, 1024, packets_to_arrive);
-  sch.Subscribe(1, &CheckPackets, &sch, true);
+  int subscription_id;
+  sch.Subscribe(1,
+                std::bind(&CheckPackets, &sch, std::placeholders::_1,
+                          std::placeholders::_2, std::placeholders::_3),
+                true, subscription_id);
   for (int i = 0; i < packets_to_arrive; ++i) {
     uint8_t* p = sch.GetPacketForSubmission(1);
     p[0] = (uint8_t)i;
@@ -132,8 +165,15 @@ void AllSinksGetAllPackets() {
   packets_arrived2 = 0;
   Scheduler sch;
   sch.RegisterSource(1, 1024, packets_to_arrive);
-  sch.Subscribe(1, &CheckPackets, &sch, false);
-  sch.Subscribe(1, &CheckPackets2, &sch, false);
+  int subscription_id1, subscription_id2;
+  sch.Subscribe(1,
+                std::bind(&CheckPackets, &sch, std::placeholders::_1,
+                          std::placeholders::_2, std::placeholders::_3),
+                false, subscription_id1);
+  sch.Subscribe(1,
+                std::bind(&CheckPackets2, &sch, std::placeholders::_1,
+                          std::placeholders::_2, std::placeholders::_3),
+                false, subscription_id2);
   for (int i = 0; i < packets_to_arrive; ++i) {
     uint8_t* p = sch.GetPacketForSubmission(1);
     p[0] = (uint8_t)i;
@@ -170,8 +210,15 @@ void MultipleSourcesWithOneSink() {
   Scheduler sch;
   sch.RegisterSource(1, 1024, packets_to_arrive);
   sch.RegisterSource(2, 1024, packets_to_arrive);
-  sch.Subscribe(1, &CheckPackets12, &sch, false);
-  sch.Subscribe(2, &CheckPackets12, &sch, false);
+  int subscription_id1, subscription_id2;
+  sch.Subscribe(1,
+                std::bind(&CheckPackets12, &sch, std::placeholders::_1,
+                          std::placeholders::_2, std::placeholders::_3),
+                false, subscription_id1);
+  sch.Subscribe(2,
+                std::bind(&CheckPackets12, &sch, std::placeholders::_1,
+                          std::placeholders::_2, std::placeholders::_3),
+                false, subscription_id2);
   for (int i = 0; i < packets_to_arrive; ++i) {
     uint8_t* p = sch.GetPacketForSubmission(1);
     p[0] = (uint8_t)i;
@@ -225,9 +272,19 @@ void SourceSinkChainWorks() {
   sch.RegisterSource(1, 1024, packets_to_arrive);
   sch.RegisterSource(2, 1024, packets_to_arrive);
   sch.RegisterSource(3, 1024, packets_to_arrive);
-  sch.Subscribe(1, &CheckPackets123, &sch, false);
-  sch.Subscribe(2, &CheckPackets123, &sch, false);
-  sch.Subscribe(3, &CheckPackets123, &sch, false);
+  int subscription_id1, subscription_id2, subscription_id3;
+  sch.Subscribe(1,
+                std::bind(&CheckPackets123, &sch, std::placeholders::_1,
+                          std::placeholders::_2, std::placeholders::_3),
+                false, subscription_id1);
+  sch.Subscribe(2,
+                std::bind(&CheckPackets123, &sch, std::placeholders::_1,
+                          std::placeholders::_2, std::placeholders::_3),
+                false, subscription_id2);
+  sch.Subscribe(3,
+                std::bind(&CheckPackets123, &sch, std::placeholders::_1,
+                          std::placeholders::_2, std::placeholders::_3),
+                false, subscription_id3);
   for (int i = 0; i < packets_to_arrive; ++i) {
     uint8_t* p = sch.GetPacketForSubmission(1);
     p[0] = (uint8_t)i;

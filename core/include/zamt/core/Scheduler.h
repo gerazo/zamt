@@ -21,6 +21,7 @@
 #include <condition_variable>
 #include <cstddef>
 #include <cstdint>
+#include <functional>
 #include <memory>
 #include <mutex>
 #include <queue>
@@ -34,8 +35,8 @@ class Scheduler {
   using Byte = uint8_t;
   using SourceId = size_t;
   using Time = uint64_t;
-  using SinkCallback = void (*)(void* _this, SourceId source_id,
-                                const Byte* packet, Time timestamp);
+  using SinkCallback = std::function<void(SourceId source_id,
+                                          const Byte* packet, Time timestamp)>;
 
   /// Launches all worker threads. (worker_threads == 0 means autodetect)
   Scheduler(int worker_threads = 0);
@@ -70,16 +71,17 @@ class Scheduler {
    * data packets produced by a source.
    * It can ask for its code to be run on the single UI thread.
    * It is a slow operation done in configuration time.
+   * The ID of the subscription is returned.
    */
-  void Subscribe(SourceId source_id, SinkCallback sink_callback, void* _this,
-                 bool on_UI);
+  void Subscribe(SourceId source_id, SinkCallback sink_callback, bool on_UI,
+                 int& subscription_id);
 
   /**
    * A sink no longer wants to get packets from a source.
    * It is a slow operation done in configuration time.
    * Pending tasks will still be emitted if there are any.
    */
-  void Unsubscribe(SourceId source_id, SinkCallback sink_callback);
+  void Unsubscribe(SourceId source_id, int subscription_id);
 
   /// Caller source acquires a packet which can be loaded with data.
   Byte* GetPacketForSubmission(SourceId source_id);
@@ -109,11 +111,9 @@ class Scheduler {
 
  private:
   struct Subscription {
-    Subscription(SinkCallback _sink_callback, void* __this, bool _on_UI);
-    bool operator==(const Subscription& o) const;
+    Subscription(SinkCallback _sink_callback, bool _on_UI);
 
     SinkCallback sink_callback;
-    void* _this;
     bool on_UI;
   };
 
@@ -139,13 +139,12 @@ class Scheduler {
   struct Task {
     SourceId source_id;
     SinkCallback sink_callback;
-    void* _this;
     Byte* packet;
   };
 
   struct TaskRef {
     TaskRef(Time _timestamp, SourceId source_id, SinkCallback sink_callback,
-            void* _this, Byte* packet);
+            Byte* packet);
     bool operator<(const TaskRef& o) const;
 
     Time timestamp;
