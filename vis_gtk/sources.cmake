@@ -10,6 +10,6 @@ set(module_includes
 )
 
 set(module_libs
-  ${GKTMM_LIBRARIES}
+  ${GTKMM_LIBRARIES}
 )
 
