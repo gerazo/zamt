@@ -31,6 +31,7 @@ class Visualization : public Module {
  public:
   const static char* kModuleLabel;
   const static char* kApplicationID;
+  const static char* kActivationsPerSecondParamStr;
   const static int kActivationsPerSecond = 25;
 
   using RenderCallback =
@@ -55,7 +56,14 @@ class Visualization : public Module {
 
  private:
   struct Window {
+    bool IsEmpty() { return !window_title_; }
+    bool IsInitialized() { return (bool)canvas_; }
+    void OpenWindow(Glib::RefPtr<Gtk::Application>& application);
+    void CloseWindow(Glib::RefPtr<Gtk::Application>& application);
     bool OnDraw(const Cairo::RefPtr<Cairo::Context>& cr);
+    const char* window_title_ = nullptr;
+    int width_;
+    int height_;
     std::unique_ptr<Gtk::Window> window_;
     std::unique_ptr<Gtk::DrawingArea> canvas_;
     RenderCallback queried_callback_;
@@ -64,14 +72,17 @@ class Visualization : public Module {
 
   bool OnTimeout();
   void RunMainLoop();
+  void PrintHelp();
 
   CLIParameters cli_;
   const ModuleCenter* mc_ = nullptr;
   std::unique_ptr<Log> log_;
   std::unique_ptr<std::thread> visualization_loop_;
+  int activations_per_second_;
   std::atomic<bool> shutdown_initiated_;
   Glib::RefPtr<Gtk::Application> application_;
   std::deque<Window> windows_;
+  std::atomic_flag windows_mutex_ = ATOMIC_FLAG_INIT;
 };
 
 }  // namespace zamt

@@ -13,11 +13,18 @@ namespace zamt {
 
 const char* Visualization::kModuleLabel = "vis_gtk";
 const char* Visualization::kApplicationID = "zamt";
+const char* Visualization::kActivationsPerSecondParamStr = "-fps";
 
 Visualization::Visualization(int argc, const char* const* argv)
     : cli_(argc, argv), shutdown_initiated_(false) {
   log_.reset(new Log(kModuleLabel, cli_));
-  if (cli_.HasParam(Core::kHelpParamStr)) return;
+  if (cli_.HasParam(Core::kHelpParamStr)) {
+    PrintHelp();
+    return;
+  }
+  int fps = cli_.GetNumParam(kActivationsPerSecondParamStr);
+  activations_per_second_ =
+      (fps == CLIParameters::kNotFound) ? kActivationsPerSecond : fps;
   log_->LogMessage("Starting...");
   visualization_loop_.reset(new std::thread(&Visualization::RunMainLoop, this));
 }
@@ -42,46 +49,66 @@ void Visualization::Shutdown(int /*exit_code*/) {
 
 void Visualization::OpenWindow(const char* window_title, int width, int height,
                                int& window_id) {
+  while (windows_mutex_.test_and_set(std::memory_order_acquire))
+    ;
   size_t id = 0;
   while (id < windows_.size()) {
-    if (!windows_[id].window_) break;
+    if (windows_[id].IsEmpty() && !windows_[id].IsInitialized()) break;
     id++;
   }
   if (id >= windows_.size()) windows_.emplace_back();
-  assert(id < windows_.size() && !windows_[id].window_ &&
-         !windows_[id].canvas_);
-  auto& win = windows_[id].window_;
-  win.reset(new Gtk::Window());
-  win->set_title(window_title);
-  win->resize(width, height);
-  auto& area = windows_[id].canvas_;
-  area.reset(new Gtk::DrawingArea());
-  win->add(*area);
-  win->set_application(application_);
-  win->show();
-  area->show();
-  area->signal_draw().connect(
-      sigc::mem_fun(&windows_[id], &Visualization::Window::OnDraw), false);
+  assert(id < windows_.size());
+  windows_[id].window_title_ = window_title;
+  windows_[id].width_ = width;
+  windows_[id].height_ = height;
+  assert(!windows_[id].IsEmpty() && !windows_[id].IsInitialized());
   window_id = (int)id;
+  windows_mutex_.clear(std::memory_order_release);
 }
 
 void Visualization::CloseWindow(int window_id) {
+  while (windows_mutex_.test_and_set(std::memory_order_acquire))
+    ;
   size_t id = (size_t)window_id;
-  assert(id < windows_.size() && windows_[id].window_ && windows_[id].canvas_);
-  windows_[id].window_->unset_application();
-  windows_[id].window_.reset(nullptr);
-  windows_[id].canvas_.reset(nullptr);
-  windows_[id].queried_callback_ = nullptr;
+  assert(id < windows_.size() && !windows_[id].IsEmpty() &&
+         windows_[id].IsInitialized());
+  windows_[id].window_title_ = nullptr;
+  assert(windows_[id].IsEmpty() && windows_[id].IsInitialized());
+  windows_mutex_.clear(std::memory_order_release);
 }
 
 void Visualization::QueryRender(int window_id, RenderCallback render_callback) {
   assert(render_callback);
   size_t id = (size_t)window_id;
-  assert(id < windows_.size() && windows_[id].window_ && windows_[id].canvas_);
+  assert(id < windows_.size() && !windows_[id].IsEmpty());
   while (windows_[id].callback_mutex_.test_and_set(std::memory_order_acquire))
     ;
   windows_[id].queried_callback_ = render_callback;
   windows_[id].callback_mutex_.clear(std::memory_order_release);
+}
+
+void Visualization::Window::OpenWindow(
+    Glib::RefPtr<Gtk::Application>& application) {
+  assert(window_title_ && width_ && height_ && !window_ && !canvas_);
+  window_.reset(new Gtk::Window());
+  window_->set_title(window_title_);
+  window_->resize(width_, height_);
+  canvas_.reset(new Gtk::DrawingArea());
+  window_->add(*canvas_);
+  window_->set_application(application);
+  window_->show();
+  canvas_->show();
+  canvas_->signal_draw().connect(
+      sigc::mem_fun(this, &Visualization::Window::OnDraw), false);
+}
+
+void Visualization::Window::CloseWindow(
+    Glib::RefPtr<Gtk::Application>& /*application*/) {
+  assert(window_ && window_ && canvas_);
+  window_->unset_application();
+  window_.reset(nullptr);
+  canvas_.reset(nullptr);
+  queried_callback_ = nullptr;
 }
 
 bool Visualization::Window::OnDraw(const Cairo::RefPtr<Cairo::Context>& cr) {
@@ -102,9 +129,21 @@ bool Visualization::OnTimeout() {
     return false;
   }
   for (size_t id = 0; id < windows_.size(); ++id) {
-    if (windows_[id].window_ && windows_[id].queried_callback_) {
-      windows_[id].canvas_->queue_draw();
+    Window& win = windows_[id];
+    while (windows_mutex_.test_and_set(std::memory_order_acquire))
+      ;
+    if (win.IsEmpty() && win.IsInitialized()) {
+      win.CloseWindow(application_);
+      assert(win.IsEmpty() && !win.IsInitialized());
     }
+    if (!win.IsEmpty() && !win.IsInitialized()) {
+      win.OpenWindow(application_);
+      assert(!win.IsEmpty() && win.IsInitialized());
+    }
+    if (win.IsInitialized() && win.queried_callback_) {
+      win.canvas_->queue_draw();
+    }
+    windows_mutex_.clear(std::memory_order_release);
   }
   return true;
 }
@@ -114,10 +153,20 @@ void Visualization::RunMainLoop() {
   int argc = cli_.argc();
   char** argv = (char**)cli_.argv();
   application_ = Gtk::Application::create(argc, argv, kApplicationID);
+  log_->LogMessage("Setting mainloop timer to ", activations_per_second_,
+                   " fps");
   Glib::signal_timeout().connect(sigc::mem_fun(this, &Visualization::OnTimeout),
-                                 1000 / kActivationsPerSecond);
+                                 1000 / (unsigned)activations_per_second_);
   application_->run();
   log_->LogMessage("Visualization mainloop stopping...");
+}
+
+void Visualization::PrintHelp() {
+  Log::Print("ZAMT Visualization Module using GTK");
+  Log::Print(
+      " -fpsNum        Sets target rendering FPS to Num per seconds instead "
+      "of the default 25.");
+  Log::Print(" (standard GTK options also work)");
 }
 
 }  // namespace zamt
