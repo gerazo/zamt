@@ -4,6 +4,7 @@
 #include "zamt/core/Core.h"
 #include "zamt/core/Log.h"
 #include "zamt/core/ModuleCenter.h"
+#include "zamt/liveaudio_pulse/RawAudioVisualizer.h"
 
 #include <pulse/context.h>
 #include <pulse/def.h>
@@ -162,28 +163,28 @@ const char* LiveAudio::kDeviceListParamStr = "-al";
 const char* LiveAudio::kDeviceSelectParamStr = "-ad";
 const char* LiveAudio::kLatencyParamStr = "-at";
 const char* LiveAudio::kSampleRateParamStr = "-ar";
+const char* LiveAudio::kVisualizeRawAudioStr = "-sLiveAudio";
 
 LiveAudio::LiveAudio(int argc, const char* const* argv)
-    : audio_loop_should_run_(false) {
-  CLIParameters cli(argc, argv);
-  log_.reset(new Log(kModuleLabel, cli));
+    : cli_(argc, argv), audio_loop_should_run_(false) {
+  log_.reset(new Log(kModuleLabel, cli_));
   log_->LogMessage("Starting...");
-  if (cli.HasParam(Core::kHelpParamStr)) {
+  if (cli_.HasParam(Core::kHelpParamStr)) {
     PrintHelp();
     return;
   }
   scheduler_id_ = ModuleCenter::GetId<LiveAudio>();
-  if (cli.HasParam(kDeviceListParamStr))
+  if (cli_.HasParam(kDeviceListParamStr))
     selected_device_ = kDeviceListSelected;
   else {
-    int selected_dev = cli.GetNumParam(kDeviceSelectParamStr);
+    int selected_dev = cli_.GetNumParam(kDeviceSelectParamStr);
     if (selected_dev != CLIParameters::kNotFound)
       selected_device_ = selected_dev;
   }
-  int req_sample_rate = cli.GetNumParam(kSampleRateParamStr);
+  int req_sample_rate = cli_.GetNumParam(kSampleRateParamStr);
   if (req_sample_rate != CLIParameters::kNotFound)
     requested_sample_rate_ = req_sample_rate;
-  int req_latency = cli.GetNumParam(kLatencyParamStr);
+  int req_latency = cli_.GetNumParam(kLatencyParamStr);
   if (req_latency != CLIParameters::kNotFound) {
     requested_overall_latency_ = req_latency;
   } else {
@@ -263,6 +264,12 @@ void LiveAudio::RunMainLoop() {
   err = pa_context_connect(context_, nullptr, PA_CONTEXT_NOFAIL, nullptr);
   assert(err >= 0);
 
+#ifdef ZAMT_MODULE_VIS_GTK
+  if (cli_.HasParam(kVisualizeRawAudioStr)) {
+    visualizer_.reset(new RawAudioVisualizer(mc_));
+  }
+#endif
+
   while (audio_loop_should_run_.load(std::memory_order_acquire)) {
     err = pa_mainloop_prepare(mainloop_, PA_MSEC_PER_SEC * kWatchDogSeconds);
     assert(err >= 0);
@@ -272,6 +279,8 @@ void LiveAudio::RunMainLoop() {
   }
 
   log_->LogMessage("Audio mainloop stopping...");
+  visualizer_.reset(nullptr);
+
   if (stream_) {
     pa_stream_disconnect(stream_);
     pa_stream_unref(stream_);
@@ -381,6 +390,13 @@ void LiveAudio::ProcessFragment(StereoSample* buffer, int samples) {
                      kUSecPerSampleShift);
       if (timestamp <= last_timestamp_) timestamp = last_timestamp_ + 1;
       last_timestamp_ = timestamp;
+
+#ifdef ZAMT_MODULE_VIS_GTK
+      if (visualizer_) {
+        visualizer_->Show(packet, submit_buffer_size_, timestamp);
+      }
+#endif
+
       scheduler_->SubmitPacket(scheduler_id_, (Scheduler::Byte*)packet,
                                timestamp);
 
@@ -414,6 +430,10 @@ void LiveAudio::PrintHelp() {
   Log::Print(
       " -adSrcNumber   Use SrcNumber audio source from the list of sources"
       " instead of the default one.");
+#ifdef ZAMT_MODULE_VIS_GTK
+  Log::Print(
+      " -sLiveAudio    Show raw audio data coming in from the live input.");
+#endif
 }
 
 }  // namespace zamt

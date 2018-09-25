@@ -7,6 +7,7 @@
 /// The idea is to test how the system works in a realistic environment.
 /// Own thread is used to interact with audio library for skipless recording.
 
+#include "zamt/core/CLIParameters.h"
 #include "zamt/core/Module.h"
 #include "zamt/core/Scheduler.h"
 
@@ -35,6 +36,7 @@ void stream_read_callback(pa_stream* p, size_t nbytes, void* userdata);
 namespace zamt {
 
 class Log;
+class RawAudioVisualizer;
 class Scheduler;
 
 class LiveAudio : public Module {
@@ -53,6 +55,7 @@ class LiveAudio : public Module {
   const static char* kDeviceSelectParamStr;
   const static char* kLatencyParamStr;
   const static char* kSampleRateParamStr;
+  const static char* kVisualizeRawAudioStr;
   const static int kChannels = 2;  // stereo
   const static int kMaxLatencyForHardwareBufferInMs = 200;
   const static int kOverallLatencyInMs = 10;
@@ -91,6 +94,7 @@ class LiveAudio : public Module {
   void ProcessFragment(StereoSample* buffer, int samples);
   void PrintHelp();
 
+  CLIParameters cli_;
   std::unique_ptr<Log> log_;
   const ModuleCenter* mc_ = nullptr;
   Scheduler* scheduler_ = nullptr;
@@ -114,6 +118,8 @@ class LiveAudio : public Module {
   pa_mainloop* mainloop_ = nullptr;
   pa_context* context_ = nullptr;
   pa_stream* stream_ = nullptr;
+
+  std::unique_ptr<RawAudioVisualizer> visualizer_;
 };
 
 }  // namespace zamt

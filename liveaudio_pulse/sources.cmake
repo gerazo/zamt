@@ -1,5 +1,6 @@
 set(module_cpps
   LiveAudio.cpp
+  RawAudioVisualizer.cpp
 )
 
 
