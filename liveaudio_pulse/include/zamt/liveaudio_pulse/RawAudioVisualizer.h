@@ -5,6 +5,7 @@
 
 #include "zamt/core/Scheduler.h"
 #include "zamt/liveaudio_pulse/LiveAudio.h"
+#include "zamt/vis_gtk/Visualization.h"
 
 namespace zamt {
 
@@ -26,6 +27,10 @@ class RawAudioVisualizer {
  private:
   const ModuleCenter* mc_;
   int window_id_;
+
+  void UpdateStatistics(LiveAudio::StereoSample* packet, int stereo_samples,
+                        Scheduler::Time timestamp);
+  void Draw(const Cairo::RefPtr<Cairo::Context>& cctx);
 };
 
 }  // namespace zamt

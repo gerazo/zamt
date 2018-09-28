@@ -3,7 +3,6 @@
 #ifdef ZAMT_MODULE_VIS_GTK
 
 #include "zamt/core/ModuleCenter.h"
-#include "zamt/vis_gtk/Visualization.h"
 
 #include <cassert>
 
@@ -24,12 +23,23 @@ RawAudioVisualizer::~RawAudioVisualizer() {
   vis.CloseWindow(window_id_);
 }
 
-void RawAudioVisualizer::Show(LiveAudio::StereoSample* /*packet*/,
-                              int /*stereo_samples*/,
-                              Scheduler::Time /*timestamp*/) {
+void RawAudioVisualizer::Show(LiveAudio::StereoSample* packet,
+                              int stereo_samples, Scheduler::Time timestamp) {
+  UpdateStatistics(packet, stereo_samples, timestamp);
   // TODO: Put data away
-  // TODO: Process some statistics
-  // TODO: Ask for render pass vis.QueryRender(window_id_, )
+  Visualization& vis = mc_->Get<Visualization>();
+  vis.QueryRender(window_id_, std::bind(&RawAudioVisualizer::Draw, this,
+                                        std::placeholders::_1));
+}
+
+void RawAudioVisualizer::UpdateStatistics(LiveAudio::StereoSample* /*packet*/,
+                                          int /*stereo_samples*/,
+                                          Scheduler::Time /*timestamp*/) {
+  // TODO
+}
+
+void RawAudioVisualizer::Draw(const Cairo::RefPtr<Cairo::Context>& /*cctx*/) {
+  // TODO
 }
 
 }  // namespace zamt
