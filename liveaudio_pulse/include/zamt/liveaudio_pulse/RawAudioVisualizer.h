@@ -3,6 +3,8 @@
 
 #ifdef ZAMT_MODULE_VIS_GTK
 
+#include <deque>
+
 #include "zamt/core/Scheduler.h"
 #include "zamt/liveaudio_pulse/LiveAudio.h"
 #include "zamt/vis_gtk/Visualization.h"
@@ -17,6 +19,7 @@ class RawAudioVisualizer {
   const static char* kVisualizationTitle;
   const static int kVisualizationWidth = 640;
   const static int kVisualizationHeight = 480;
+  const static int kVisualizationBufferSize = 512;
 
   RawAudioVisualizer(const ModuleCenter* mc);
   ~RawAudioVisualizer();
@@ -25,12 +28,14 @@ class RawAudioVisualizer {
             Scheduler::Time timestamp);
 
  private:
-  const ModuleCenter* mc_;
-  int window_id_;
-
   void UpdateStatistics(LiveAudio::StereoSample* packet, int stereo_samples,
                         Scheduler::Time timestamp);
-  void Draw(const Cairo::RefPtr<Cairo::Context>& cctx);
+  void Draw(const Cairo::RefPtr<Cairo::Context>& cctx, int width, int height);
+
+  const ModuleCenter* mc_;
+  int window_id_;
+  std::deque<LiveAudio::Sample> center_buffer_;
+  std::deque<LiveAudio::Sample> side_buffer_;
 };
 
 }  // namespace zamt

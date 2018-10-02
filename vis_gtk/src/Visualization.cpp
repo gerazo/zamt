@@ -12,7 +12,6 @@
 namespace zamt {
 
 const char* Visualization::kModuleLabel = "vis_gtk";
-const char* Visualization::kApplicationID = "zamt";
 const char* Visualization::kActivationsPerSecondParamStr = "-fps";
 
 Visualization::Visualization(int argc, const char* const* argv)
@@ -118,7 +117,9 @@ bool Visualization::Window::OnDraw(const Cairo::RefPtr<Cairo::Context>& cr) {
   RenderCallback callback = queried_callback_;
   queried_callback_ = nullptr;
   callback_mutex_.clear(std::memory_order_release);
-  callback(cr);
+  int width = canvas_->get_allocated_width();
+  int height = canvas_->get_allocated_height();
+  callback(cr, width, height);
   return true;
 }
 
@@ -150,9 +151,9 @@ bool Visualization::OnTimeout() {
 
 void Visualization::RunMainLoop() {
   log_->LogMessage("Visualization mainloop starting up...");
-  int argc = cli_.argc();
-  char** argv = (char**)cli_.argv();
-  application_ = Gtk::Application::create(argc, argv, kApplicationID);
+  // int argc = cli_.argc();
+  // char** argv = (char**)cli_.argv();
+  application_ = Gtk::Application::create();
   log_->LogMessage("Setting mainloop timer to ", activations_per_second_,
                    " fps");
   Glib::signal_timeout().connect(sigc::mem_fun(this, &Visualization::OnTimeout),

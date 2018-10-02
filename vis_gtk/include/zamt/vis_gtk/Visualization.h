@@ -30,12 +30,13 @@ class Log;
 class Visualization : public Module {
  public:
   const static char* kModuleLabel;
-  const static char* kApplicationID;
   const static char* kActivationsPerSecondParamStr;
   const static int kActivationsPerSecond = 25;
 
+  /// This callback is run on rendering thread giving it the context for
+  /// drawing and the current width and height of the window (0,0 is top-left).
   using RenderCallback =
-      std::function<void(const Cairo::RefPtr<Cairo::Context>&)>;
+      std::function<void(const Cairo::RefPtr<Cairo::Context>&, int, int)>;
 
   Visualization(int argc, const char* const* argv);
   ~Visualization();
