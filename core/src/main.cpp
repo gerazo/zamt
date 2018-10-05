@@ -9,4 +9,10 @@ int main(int argc, char** argv) {
   return core.WaitForQuit();
 }
 
+// Until libsigc++ has a bug causing unclean sigc::mem_fun deletion
+// https://github.com/libsigcplusplus/libsigcplusplus/issues/10
+extern "C" const char* __asan_default_options() {
+  return "new_delete_type_mismatch=0";
+}
+
 #endif

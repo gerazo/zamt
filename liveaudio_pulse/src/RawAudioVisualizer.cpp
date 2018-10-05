@@ -15,6 +15,7 @@ RawAudioVisualizer::RawAudioVisualizer(const ModuleCenter* mc)
       center_buffer_(kVisualizationBufferSize, 0),
       side_buffer_(kVisualizationBufferSize, 0) {
   assert(mc_);
+  buffer_position_ = 0;
   Visualization& vis = mc_->Get<Visualization>();
   vis.OpenWindow(kVisualizationTitle, kVisualizationWidth, kVisualizationHeight,
                  window_id_);
@@ -29,16 +30,18 @@ RawAudioVisualizer::~RawAudioVisualizer() {
 void RawAudioVisualizer::Show(LiveAudio::StereoSample* packet,
                               int stereo_samples, Scheduler::Time timestamp) {
   UpdateStatistics(packet, stereo_samples, timestamp);
+  while (buffer_lock_.test_and_set(std::memory_order_acquire))
+    ;
   for (int i = 0; i < stereo_samples; ++i) {
     LiveAudio::Sample center =
         (LiveAudio::Sample)((packet[i].left + packet[i].right) >> 1);
     LiveAudio::Sample side =
         (LiveAudio::Sample)((packet[i].left - packet[i].right) >> 1);
-    center_buffer_.pop_front();
-    center_buffer_.push_back(center);
-    side_buffer_.pop_front();
-    side_buffer_.push_back(side);
+    center_buffer_[(size_t)buffer_position_] = center;
+    side_buffer_[(size_t)buffer_position_] = side;
+    if (++buffer_position_ >= kVisualizationBufferSize) buffer_position_ = 0;
   }
+  buffer_lock_.clear(std::memory_order_release);
   Visualization& vis = mc_->Get<Visualization>();
   vis.QueryRender(
       window_id_,
@@ -54,33 +57,39 @@ void RawAudioVisualizer::UpdateStatistics(LiveAudio::StereoSample* /*packet*/,
 
 void RawAudioVisualizer::Draw(const Cairo::RefPtr<Cairo::Context>& cctx,
                               int width, int height) {
+  // TODO Do not call this after shutdown.
+  float middle = (float)(height >> 1);
+  float value_coef = (float)height / 65536.0f;
+  float center[kVisualizationBufferSize];
+  float side[kVisualizationBufferSize];
+  while (buffer_lock_.test_and_set(std::memory_order_acquire))
+    ;
+  int pos = buffer_position_;
+  for (int i = 0; i < kVisualizationBufferSize; ++i) {
+    center[(size_t)i] = middle + center_buffer_[(size_t)pos] * value_coef;
+    side[(size_t)i] = middle + side_buffer_[(size_t)pos] * value_coef;
+    if (++pos >= kVisualizationBufferSize) pos = 0;
+  }
+  buffer_lock_.clear(std::memory_order_release);
+
   cctx->save();
   cctx->set_source_rgb(0.0, 0.0, 0.0);
   cctx->paint();
-  cctx->set_line_width(1.0);
+  float x_diff = (float)width / kVisualizationBufferSize;
+  int i;
+  float x;
   cctx->begin_new_path();
-  double x_diff = (double)width / kVisualizationBufferSize;
-  double middle = (double)(height >> 1);
-  double value_coef = height / 65536.0;
-  cctx->set_source_rgb(1.0, 1.0, 1.0);
-  cctx->move_to(0.0, middle + center_buffer_[0] * value_coef);
-  for (
-      struct {
-        size_t i;
-        double x;
-      } c = {1, x_diff};
-      c.i < (size_t)kVisualizationBufferSize; ++c.i, c.x += x_diff)
-    cctx->line_to(c.x, middle + center_buffer_[c.i] * value_coef);
+  cctx->set_line_width(0.5);
+  cctx->set_source_rgb(0.5, 0.5, 0.5);
+  cctx->move_to(0.0, side[0]);
+  for (i = 1, x = x_diff; i < kVisualizationBufferSize; ++i, x += x_diff)
+    cctx->line_to(x, side[(size_t)i]);
   cctx->stroke();
-  cctx->set_source_rgba(1.0, 1.0, 1.0, 0.5);
-  cctx->move_to(0.0, middle + side_buffer_[0] * value_coef);
-  for (
-      struct {
-        size_t i;
-        double x;
-      } c = {1, x_diff};
-      c.i < (size_t)kVisualizationBufferSize; ++c.i, c.x += x_diff)
-    cctx->line_to(c.x, middle + side_buffer_[c.i] * value_coef);
+  cctx->set_line_width(1.0);
+  cctx->set_source_rgb(1.0, 1.0, 1.0);
+  cctx->move_to(0.0, center[0]);
+  for (i = 1, x = x_diff; i < kVisualizationBufferSize; ++i, x += x_diff)
+    cctx->line_to(x, center[(size_t)i]);
   cctx->stroke();
   cctx->restore();
 }

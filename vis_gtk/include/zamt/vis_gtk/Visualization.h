@@ -30,6 +30,7 @@ class Log;
 class Visualization : public Module {
  public:
   const static char* kModuleLabel;
+  const static char* kGTKApplicationID;
   const static char* kActivationsPerSecondParamStr;
   const static int kActivationsPerSecond = 25;
 

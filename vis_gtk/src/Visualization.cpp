@@ -12,6 +12,7 @@
 namespace zamt {
 
 const char* Visualization::kModuleLabel = "vis_gtk";
+const char* Visualization::kGTKApplicationID = "hu.lib.zamt";
 const char* Visualization::kActivationsPerSecondParamStr = "-fps";
 
 Visualization::Visualization(int argc, const char* const* argv)
@@ -153,12 +154,13 @@ void Visualization::RunMainLoop() {
   log_->LogMessage("Visualization mainloop starting up...");
   // int argc = cli_.argc();
   // char** argv = (char**)cli_.argv();
-  application_ = Gtk::Application::create();
+  application_ = Gtk::Application::create(Glib::ustring(kGTKApplicationID));
   log_->LogMessage("Setting mainloop timer to ", activations_per_second_,
                    " fps");
   Glib::signal_timeout().connect(sigc::mem_fun(this, &Visualization::OnTimeout),
                                  1000 / (unsigned)activations_per_second_);
-  application_->run();
+  Gtk::Window dummy_window;
+  application_->run(dummy_window);
   log_->LogMessage("Visualization mainloop stopping...");
 }
 

@@ -3,7 +3,8 @@
 
 #ifdef ZAMT_MODULE_VIS_GTK
 
-#include <deque>
+#include <atomic>
+#include <vector>
 
 #include "zamt/core/Scheduler.h"
 #include "zamt/liveaudio_pulse/LiveAudio.h"
@@ -34,8 +35,10 @@ class RawAudioVisualizer {
 
   const ModuleCenter* mc_;
   int window_id_;
-  std::deque<LiveAudio::Sample> center_buffer_;
-  std::deque<LiveAudio::Sample> side_buffer_;
+  int buffer_position_;
+  std::atomic_flag buffer_lock_ = ATOMIC_FLAG_INIT;
+  std::vector<LiveAudio::Sample> center_buffer_;
+  std::vector<LiveAudio::Sample> side_buffer_;
 };
 
 }  // namespace zamt
