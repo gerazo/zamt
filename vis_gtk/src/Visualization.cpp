@@ -16,7 +16,7 @@ const char* Visualization::kGTKApplicationID = "hu.lib.zamt";
 const char* Visualization::kActivationsPerSecondParamStr = "-fps";
 
 Visualization::Visualization(int argc, const char* const* argv)
-    : cli_(argc, argv), shutdown_initiated_(false) {
+    : cli_(argc, argv) {
   log_.reset(new Log(kModuleLabel, cli_));
   if (cli_.HasParam(Core::kHelpParamStr)) {
     PrintHelp();
@@ -112,7 +112,8 @@ void Visualization::Window::CloseWindow(
 }
 
 bool Visualization::Window::OnDraw(const Cairo::RefPtr<Cairo::Context>& cr) {
-  if (!window_ || !canvas_ || !queried_callback_) return true;
+  if (shutdown_initiated_ || !window_ || !canvas_ || !queried_callback_)
+    return true;
   while (callback_mutex_.test_and_set(std::memory_order_acquire))
     ;
   RenderCallback callback = queried_callback_;
@@ -171,5 +172,7 @@ void Visualization::PrintHelp() {
       "of the default 25.");
   Log::Print(" (standard GTK options also work)");
 }
+
+std::atomic<bool> Visualization::shutdown_initiated_(false);
 
 }  // namespace zamt

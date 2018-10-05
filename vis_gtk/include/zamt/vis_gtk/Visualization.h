@@ -76,12 +76,13 @@ class Visualization : public Module {
   void RunMainLoop();
   void PrintHelp();
 
+  static std::atomic<bool> shutdown_initiated_;
+
   CLIParameters cli_;
   const ModuleCenter* mc_ = nullptr;
   std::unique_ptr<Log> log_;
   std::unique_ptr<std::thread> visualization_loop_;
   int activations_per_second_;
-  std::atomic<bool> shutdown_initiated_;
   Glib::RefPtr<Gtk::Application> application_;
   std::deque<Window> windows_;
   std::atomic_flag windows_mutex_ = ATOMIC_FLAG_INIT;

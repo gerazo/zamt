@@ -36,7 +36,7 @@ class RawAudioVisualizer {
   const ModuleCenter* mc_;
   int window_id_;
   int buffer_position_;
-  std::atomic_flag buffer_lock_ = ATOMIC_FLAG_INIT;
+  std::atomic_flag buffer_mutex_ = ATOMIC_FLAG_INIT;
   std::vector<LiveAudio::Sample> center_buffer_;
   std::vector<LiveAudio::Sample> side_buffer_;
 };

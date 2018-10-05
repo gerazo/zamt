@@ -30,7 +30,7 @@ RawAudioVisualizer::~RawAudioVisualizer() {
 void RawAudioVisualizer::Show(LiveAudio::StereoSample* packet,
                               int stereo_samples, Scheduler::Time timestamp) {
   UpdateStatistics(packet, stereo_samples, timestamp);
-  while (buffer_lock_.test_and_set(std::memory_order_acquire))
+  while (buffer_mutex_.test_and_set(std::memory_order_acquire))
     ;
   for (int i = 0; i < stereo_samples; ++i) {
     LiveAudio::Sample center =
@@ -41,7 +41,7 @@ void RawAudioVisualizer::Show(LiveAudio::StereoSample* packet,
     side_buffer_[(size_t)buffer_position_] = side;
     if (++buffer_position_ >= kVisualizationBufferSize) buffer_position_ = 0;
   }
-  buffer_lock_.clear(std::memory_order_release);
+  buffer_mutex_.clear(std::memory_order_release);
   Visualization& vis = mc_->Get<Visualization>();
   vis.QueryRender(
       window_id_,
@@ -57,12 +57,11 @@ void RawAudioVisualizer::UpdateStatistics(LiveAudio::StereoSample* /*packet*/,
 
 void RawAudioVisualizer::Draw(const Cairo::RefPtr<Cairo::Context>& cctx,
                               int width, int height) {
-  // TODO Do not call this after shutdown.
   float middle = (float)(height >> 1);
   float value_coef = (float)height / 65536.0f;
   float center[kVisualizationBufferSize];
   float side[kVisualizationBufferSize];
-  while (buffer_lock_.test_and_set(std::memory_order_acquire))
+  while (buffer_mutex_.test_and_set(std::memory_order_acquire))
     ;
   int pos = buffer_position_;
   for (int i = 0; i < kVisualizationBufferSize; ++i) {
@@ -70,7 +69,7 @@ void RawAudioVisualizer::Draw(const Cairo::RefPtr<Cairo::Context>& cctx,
     side[(size_t)i] = middle + side_buffer_[(size_t)pos] * value_coef;
     if (++pos >= kVisualizationBufferSize) pos = 0;
   }
-  buffer_lock_.clear(std::memory_order_release);
+  buffer_mutex_.clear(std::memory_order_release);
 
   cctx->save();
   cctx->set_source_rgb(0.0, 0.0, 0.0);
@@ -80,7 +79,7 @@ void RawAudioVisualizer::Draw(const Cairo::RefPtr<Cairo::Context>& cctx,
   float x;
   cctx->begin_new_path();
   cctx->set_line_width(0.5);
-  cctx->set_source_rgb(0.5, 0.5, 0.5);
+  cctx->set_source_rgb(0.75, 0.75, 0.75);
   cctx->move_to(0.0, side[0]);
   for (i = 1, x = x_diff; i < kVisualizationBufferSize; ++i, x += x_diff)
     cctx->line_to(x, side[(size_t)i]);
