@@ -113,7 +113,8 @@ void stream_notify_callback(pa_stream* p, void* userdata) {
     assert(sample_spec->format == PA_SAMPLE_S16LE);
     la->sample_rate_ = (int)sample_spec->rate;
     la->usec_per_sample_shl_ =
-        (1000000 << zamt::LiveAudio::kUSecPerSampleShift) / la->sample_rate_;
+        (1000000u << zamt::LiveAudio::kUSecPerSampleShift) /
+        (unsigned)la->sample_rate_;
     const pa_buffer_attr* buffer_attr = pa_stream_get_buffer_attr(la->stream_);
     assert(buffer_attr);
     la->hw_fragment_size_ =
@@ -342,7 +343,7 @@ void LiveAudio::ProcessFragment(StereoSample* buffer, int samples) {
   pa_usec_t latency;
   int is_negative;
   int err = pa_stream_get_latency(stream_, &latency, &is_negative);
-  if (err == -PA_ERR_NODATA) {
+  if (err) {
     // fake it (this may be the 1st buffer and no timing update was done)
     assert(hw_latency_in_us_ > 0);
     latency = (pa_usec_t)hw_latency_in_us_;
@@ -386,8 +387,8 @@ void LiveAudio::ProcessFragment(StereoSample* buffer, int samples) {
 
       Scheduler::Time timestamp =
           buffer_timestamp -
-          (unsigned)(sample_buffer_filled_ * usec_per_sample_shl_ >>
-                     kUSecPerSampleShift);
+          ((Scheduler::Time)sample_buffer_filled_ * usec_per_sample_shl_ >>
+           kUSecPerSampleShift);
       if (timestamp <= last_timestamp_) timestamp = last_timestamp_ + 1;
       last_timestamp_ = timestamp;
 
@@ -401,8 +402,8 @@ void LiveAudio::ProcessFragment(StereoSample* buffer, int samples) {
                                timestamp);
 
       buffer_timestamp +=
-          (unsigned)(free_left_in_buffer * usec_per_sample_shl_ >>
-                     kUSecPerSampleShift);
+          ((Scheduler::Time)free_left_in_buffer * usec_per_sample_shl_ >>
+           kUSecPerSampleShift);
       sample_buffer_filled_ = 0;
     } else {
       if (buffer)

@@ -170,7 +170,6 @@ void Visualization::PrintHelp() {
   Log::Print(
       " -fpsNum        Sets target rendering FPS to Num per seconds instead "
       "of the default 25.");
-  Log::Print(" (standard GTK options also work)");
 }
 
 std::atomic<bool> Visualization::shutdown_initiated_(false);

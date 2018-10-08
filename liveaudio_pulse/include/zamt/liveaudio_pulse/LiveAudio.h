@@ -105,8 +105,8 @@ class LiveAudio : public Module {
   int submit_buffer_size_ = 0;  // stereo samples
   int hw_fragment_size_ = 0;    // stereo samples
   int sample_rate_ = 0;
-  int usec_per_sample_shl_ = 0;
-  Scheduler::Time last_timestamp_;  // in microseconds
+  unsigned int usec_per_sample_shl_ = 0;
+  Scheduler::Time last_timestamp_ = 0;  // in microseconds
   int hw_latency_in_us_ = 0;
 
   StereoSample* sample_buffer_ = nullptr;
