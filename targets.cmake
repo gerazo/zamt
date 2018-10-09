@@ -2,8 +2,8 @@
 
 set(modules
   core
-  audio
-  gui
+  liveaudio_pulse
+  vis_gtk
 )
 AddExe(zamtdemo "${modules}")
 

@@ -37,8 +37,9 @@ size_t ModuleCenter::ModuleStub<ModuleClass>::GetId() {
 }
 
 template <class ModuleClass>
-Module* ModuleCenter::ModuleStub<ModuleClass>::Create() {
-  return new ModuleClass();
+Module* ModuleCenter::ModuleStub<ModuleClass>::Create(int argc,
+                                                      const char* const* argv) {
+  return new ModuleClass(argc, argv);
 }
 
 template <class ModuleClass>

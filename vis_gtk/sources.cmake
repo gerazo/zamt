@@ -1,14 +1,15 @@
 set(module_cpps
+  Visualization.cpp
 )
 
 
 # 3rd party configuration
 
 set(module_includes
-  ${PULSEAUDIO_INCLUDE_DIR}
+  ${GTKMM_INCLUDE_DIRS}
 )
 
 set(module_libs
-  ${PULSEAUDIO_LIBRARY}
+  ${GTKMM_LIBRARIES}
 )
 

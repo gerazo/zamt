@@ -96,7 +96,7 @@ if [ "$NOANAL" != "1" ]; then
     for SOURCE in $( find $MODULE"include" $MODULE"src" $MODULE"test" -regex "\(.*\.cpp\)\|\(.*\.h\)" ); do
       if clang-format -style=file -output-replacements-xml $SOURCE | grep "<replacement " >/dev/null; then
         echo "\\033[1m\\033[37m\\033[43m" Syntax convention problem with $SOURCE "\\033[0m"
-        clang-format -style=file $SOURCE | diff $SOURCE -
+        clang-format -style=file $SOURCE | diff -u $SOURCE -
       fi
     done
   done

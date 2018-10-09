@@ -1,17 +1,26 @@
 set(this_module core)
 
 
+set(other_modules
+)
+
+set(test_cpps
+  CLIParametersTest.cpp
+)
+AddTest(CLIParametersTest ${this_module} "${other_modules}" "${test_cpps}")
+
+set(test_cpps
+  CoreTest.cpp
+)
+AddTest(CoreTest ${this_module} "${other_modules}" "${test_cpps}")
+
 set(test_cpps
   ModuleCenterTest.cpp
-)
-set(other_modules
 )
 AddTest(ModuleCenterTest ${this_module} "${other_modules}" "${test_cpps}")
 
 set(test_cpps
   SchedulerTest.cpp
-)
-set(other_modules
 )
 AddTest(SchedulerTest ${this_module} "${other_modules}" "${test_cpps}")
 
