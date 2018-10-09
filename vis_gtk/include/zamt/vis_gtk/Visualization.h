@@ -8,6 +8,10 @@
  * Visualization takes care of Gtk::Application and Gtk::Window creation.
  * One can schedule rendering on the next frame by asking for a callback to the
  * given rendering code on the rendering thread.
+ *
+ * Leak checkers like address sanitizer can show static allocations as leaks
+ * coming from libglib.so (1 alloc) and libfontconfig.so (several alloc)
+ * but they are not increasing with time so they can be discarded.
  */
 
 #include "zamt/core/CLIParameters.h"

@@ -163,9 +163,11 @@ void Visualization::RunMainLoop() {
                    " fps");
   Glib::signal_timeout().connect(sigc::mem_fun(this, &Visualization::OnTimeout),
                                  1000 / (unsigned)activations_per_second_);
-  Gtk::Window dummy_window;
-  application_->run(dummy_window);
-  dummy_window.unset_application();
+  Gtk::Window about_window;
+  about_window.add_label("\n   ZAMT is running...   \n", false,
+                         Gtk::ALIGN_CENTER, Gtk::ALIGN_CENTER);
+  application_->run(about_window);
+  about_window.unset_application();
   log_->LogMessage("Visualization mainloop stopping...");
 }
 
