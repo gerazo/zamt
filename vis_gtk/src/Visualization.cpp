@@ -129,7 +129,10 @@ bool Visualization::OnTimeout() {
   if (shutdown_initiated_) {
     assert(application_);
     application_->quit();
-    return false;
+    for (size_t id = 0; id < windows_.size(); ++id) {
+      if (!windows_[id].IsEmpty() && windows_[id].IsInitialized())
+        CloseWindow((int)id);
+    }
   }
   for (size_t id = 0; id < windows_.size(); ++id) {
     Window& win = windows_[id];
@@ -148,7 +151,7 @@ bool Visualization::OnTimeout() {
     }
     windows_mutex_.clear(std::memory_order_release);
   }
-  return true;
+  return !shutdown_initiated_;
 }
 
 void Visualization::RunMainLoop() {
@@ -162,6 +165,7 @@ void Visualization::RunMainLoop() {
                                  1000 / (unsigned)activations_per_second_);
   Gtk::Window dummy_window;
   application_->run(dummy_window);
+  dummy_window.unset_application();
   log_->LogMessage("Visualization mainloop stopping...");
 }
 

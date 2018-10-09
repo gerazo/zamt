@@ -94,6 +94,13 @@ int Core::WaitForQuit() {
     exit_code = exit_code_.load(std::memory_order_acquire);
   }
   log_->LogMessage("Shutdown started with exit code ", exit_code);
+#ifdef TEST
+  const int wait_for_msecs = 0;
+#else
+  const int wait_for_msecs = 300;
+#endif
+  log_->LogMessage("Waiting ", wait_for_msecs, " ms...");
+  std::this_thread::sleep_for(std::chrono::milliseconds(wait_for_msecs));
   return exit_code;
 }
 
